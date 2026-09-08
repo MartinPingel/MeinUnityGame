@@ -1843,8 +1843,8 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   clock: {fileID: 2180000002}
   sun: {fileID: 410087040}
-  sunriseHour: 6
-  sunsetHour: 18
+  sunriseHour: 5
+  sunsetHour: 22
   transitionHours: 2
   daySunIntensity: 2
   daySunColor: {r: 1, g: 0.96, b: 0.9, a: 1}

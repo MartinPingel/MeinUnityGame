@@ -15,8 +15,8 @@ public sealed class DayNightCycle : MonoBehaviour
     [SerializeField] private Light sun;
 
     [Header("Sonnenzeiten (Spielstunden)")]
-    [SerializeField, Range(0f, 23.99f)] private float sunriseHour = 6f;
-    [SerializeField, Range(0f, 23.99f)] private float sunsetHour = 18f;
+    [SerializeField, Range(0f, 23.99f)] private float sunriseHour = 5f;
+    [SerializeField, Range(0f, 23.99f)] private float sunsetHour = 22f;
     [Tooltip("Aufhellen nach Sonnenaufgang / Abdunkeln vor Sonnenuntergang.")]
     [SerializeField, Range(0.1f, 6f)] private float transitionHours = 2f;
 
@@ -197,8 +197,8 @@ public sealed class DayNightCycle : MonoBehaviour
 
     private void OnValidate()
     {
-        sunriseHour = ValidRange(sunriseHour, 6f, 0f, 23.99f);
-        sunsetHour = ValidRange(sunsetHour, 18f, 0f, 23.99f);
+        sunriseHour = ValidRange(sunriseHour, 5f, 0f, 23.99f);
+        sunsetHour = ValidRange(sunsetHour, 22f, 0f, 23.99f);
         float length = Mathf.Repeat(sunsetHour - sunriseHour, 24f);
         if (length < 0.1f || length > 23.9f)
             sunsetHour = Mathf.Repeat(sunriseHour + 12f, 24f);

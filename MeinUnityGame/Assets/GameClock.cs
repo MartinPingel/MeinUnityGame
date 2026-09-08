@@ -28,6 +28,7 @@ public sealed class GameClock : MonoBehaviour
     private double minuteRoundingError;
     private double lastRealTime;
     private bool initialized;
+    private GUIStyle clockDisplayStyle;
 
     /// <summary>Raised after each advance, with the old and new total game minutes.
     /// NPC schedules can use this interval to handle skipped hours or days.</summary>
@@ -92,6 +93,28 @@ public sealed class GameClock : MonoBehaviour
             // 120 real minutes/day: 0.2 game minutes/second, or 60 in 300 seconds.
             AdvanceMinutes(realSeconds * 24d / realMinutesPerDay);
         }
+    }
+
+    // Lightweight play-mode display for testing the existing clock.
+    private void OnGUI()
+    {
+        if (!Application.isPlaying)
+            return;
+
+        if (clockDisplayStyle == null)
+        {
+            clockDisplayStyle = new GUIStyle(GUI.skin.box)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 24,
+                fontStyle = FontStyle.Bold
+            };
+            clockDisplayStyle.normal.textColor = Color.white;
+        }
+
+        float width = Mathf.Min(320f, Mathf.Max(1f, Screen.width - 24f));
+        Rect bounds = new Rect((Screen.width - width) * 0.5f, 12f, width, 48f);
+        GUI.Box(bounds, $"Tag {CurrentDay} – {CurrentHour:00}:{CurrentMinute:00}", clockDisplayStyle);
     }
 
     /// <summary>Hook for a future wait/sleep system; fractions and multi-day skips are supported.</summary>

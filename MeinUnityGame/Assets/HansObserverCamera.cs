@@ -16,6 +16,18 @@ public sealed class HansObserverCamera : MonoBehaviour
     [SerializeField, Range(15f, 65f)] private float pitch = 30f;
     [SerializeField] private float targetHeight = 0.6f;
 
+    /// <summary>Read-only visibility signal for the observed NPC's status panel.</summary>
+    public bool IsObserving(Transform target)
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        return isActiveAndEnabled && enableObserver && observingHans &&
+            viewCamera != null && viewCamera.isActiveAndEnabled &&
+            hans != null && hans.gameObject.activeInHierarchy && hans == target;
+#else
+        return false;
+#endif
+    }
+
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     private Camera viewCamera;
     private bool observingHans;

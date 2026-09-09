@@ -1,14 +1,13 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using Village.Npc;
 
-/// <summary>Development-only, scene-bound Hans display. F3 toggles the existing panel.</summary>
+/// <summary>Development-only, scene-bound Hans display. Visibility follows the Hans observer camera.</summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(NpcAgent))]
 public sealed class NpcDebugDisplay : MonoBehaviour
 {
-    [SerializeField] private bool showDebug;
+    [SerializeField] private HansObserverCamera observerCamera;
     [SerializeField] private RectTransform panel;
     [SerializeField] private Text values;
 
@@ -26,7 +25,7 @@ public sealed class NpcDebugDisplay : MonoBehaviour
         // Explicit runtime font, independent of GUI skins or TMP resource imports.
         values.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         RefreshDisplay();
-        panel.gameObject.SetActive(showDebug);
+        panel.gameObject.SetActive(IsObserved);
 #else
         if (panel != null) panel.gameObject.SetActive(false);
 #endif
@@ -40,21 +39,14 @@ public sealed class NpcDebugDisplay : MonoBehaviour
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     private NpcAgent agent;
 
-    private void Update()
-    {
-        if (Keyboard.current != null && Keyboard.current.f3Key.wasPressedThisFrame)
-        {
-            showDebug = !showDebug;
-            RefreshDisplay();
-            panel.gameObject.SetActive(showDebug);
-        }
-    }
+    private bool IsObserved => observerCamera != null && observerCamera.IsObserving(transform);
 
     private void LateUpdate()
     {
-        if (panel.gameObject.activeSelf != showDebug)
-            panel.gameObject.SetActive(showDebug);
-        if (!showDebug) return;
+        bool visible = IsObserved;
+        if (panel.gameObject.activeSelf != visible)
+            panel.gameObject.SetActive(visible);
+        if (!visible) return;
         // Draw this panel last on the shared canvas, including after WaitMenu.Awake.
         panel.SetAsLastSibling();
         RefreshDisplay();
@@ -64,11 +56,11 @@ public sealed class NpcDebugDisplay : MonoBehaviour
     {
         if (agent == null)
         {
-            values.text = "NPC-Debug [F3]\nNpcAgent fehlt.";
+            values.text = "NPC-Debug\nNpcAgent fehlt.";
             return;
         }
         NpcSimulation model = agent.Simulation;
-        string text = $"{agent.NpcName} – {agent.Profession}  [F3]\n";
+        string text = $"{agent.NpcName} – {agent.Profession}\n";
         if (agent.Clock != null)
             text += $"Tag {agent.Clock.CurrentDay} – {agent.Clock.CurrentHour:00}:{agent.Clock.CurrentMinute:00}\n";
         else

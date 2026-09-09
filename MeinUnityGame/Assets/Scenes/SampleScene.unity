@@ -4308,7 +4308,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7f49a4a996824d67811911988346a209, type: 3}
   m_Name:
   m_EditorClassIdentifier:
-  showDebug: 0
+  observerCamera: {fileID: 330585548}
   panel: {fileID: 2600000001}
   values: {fileID: 2600000013}
 --- !u!1 &2500000000
@@ -4447,7 +4447,7 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   m_Material: {fileID: 0}
-  m_Color: {r: 0.04, g: 0.05, b: 0.07, a: 0.96}
+  m_Color: {r: 0.04, g: 0.05, b: 0.07, a: 0.8}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -4542,7 +4542,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 1
     m_LineSpacing: 1
-  m_Text: "Hans – Bauer [F3]\nZustand: Wird geladen\nZiel: Wird geladen\nMüdigkeit: Wird geladen\nArbeitsstatus: Wird geladen"
+  m_Text: "Hans – Bauer\nZustand: Wird geladen\nZiel: Wird geladen\nMüdigkeit: Wird geladen\nArbeitsstatus: Wird geladen"
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

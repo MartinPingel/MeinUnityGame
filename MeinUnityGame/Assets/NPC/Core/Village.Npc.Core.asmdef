@@ -1,0 +1,7 @@
+{
+  "name": "Village.Npc.Core",
+  "rootNamespace": "Village.Npc",
+  "references": [],
+  "autoReferenced": true,
+  "noEngineReferences": true
+}

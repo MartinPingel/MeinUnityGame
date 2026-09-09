@@ -1,0 +1,13 @@
+{
+  "name": "Village.Npc.Tests",
+  "references": [
+    "Village.Npc.Core"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": false
+}

@@ -15,6 +15,7 @@ using UnityEngine.SceneManagement;
 public sealed class WaitMenu : MonoBehaviour
 {
     [SerializeField] private GameClock clock;
+    [SerializeField] private Canvas uiCanvas;
 
     private bool isOpen;
     private bool wasPaused;
@@ -173,16 +174,30 @@ public sealed class WaitMenu : MonoBehaviour
     private void BuildUI()
     {
         font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        // A Screen Space Overlay canvas must remain a scene root, not a child
-        // of GameClock, the player or a camera. OnDestroy still owns its cleanup.
-        uiRoot = new GameObject("GameClock UI", typeof(RectTransform), typeof(Canvas),
-            typeof(CanvasScaler), typeof(GraphicRaycaster));
+        // SampleScene supplies its own global root canvas. The existing fallback
+        // keeps this component usable in scenes that have not assigned a canvas.
+        Canvas canvas = uiCanvas;
+        if (canvas == null)
+        {
+            GameObject canvasObject = new GameObject("Global UI", typeof(RectTransform), typeof(Canvas));
+            SceneManager.MoveGameObjectToScene(canvasObject, gameObject.scene);
+            canvas = canvasObject.GetComponent<Canvas>();
+            uiCanvas = canvas;
+        }
+        canvas.gameObject.layer = 5;
+        if (canvas.GetComponent<GraphicRaycaster>() == null)
+            canvas.gameObject.AddComponent<GraphicRaycaster>();
+
+        // Only this content is owned by WaitMenu; the scene owns the canvas.
+        uiRoot = new GameObject("GameClock UI", typeof(RectTransform));
         uiRoot.layer = 5;
-        SceneManager.MoveGameObjectToScene(uiRoot, gameObject.scene);
         RectTransform rootRect = uiRoot.GetComponent<RectTransform>();
+        rootRect.SetParent(canvas.transform, false);
+        rootRect.anchorMin = Vector2.zero;
+        rootRect.anchorMax = Vector2.one;
+        rootRect.offsetMin = rootRect.offsetMax = Vector2.zero;
         rootRect.localScale = Vector3.one;
         rootRect.localRotation = Quaternion.identity;
-        Canvas canvas = uiRoot.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.worldCamera = null;
         canvas.targetDisplay = 0;
@@ -190,7 +205,9 @@ public sealed class WaitMenu : MonoBehaviour
         canvas.enabled = true;
 
         // Keep the complete top-anchored controls inside smaller Game windows too.
-        CanvasScaler scaler = uiRoot.GetComponent<CanvasScaler>();
+        CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();
+        if (scaler == null)
+            scaler = canvas.gameObject.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1280f, 720f);
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;

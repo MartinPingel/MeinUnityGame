@@ -57,6 +57,7 @@ public sealed class NpcDebugDisplay : MonoBehaviour
         if (agent == null)
         {
             values.text = "NPC-Debug\nNpcAgent fehlt.";
+            UpdateLayout();
             return;
         }
         NpcSimulation model = agent.Simulation;
@@ -80,8 +81,45 @@ public sealed class NpcDebugDisplay : MonoBehaviour
             if (!agent.enabled) text += "\nNPC-Komponente deaktiviert.";
         }
         values.text = text;
-        // Leave room for wrapped targets/status instead of clipping their values.
-        panel.sizeDelta = new Vector2(340f, Mathf.Max(360f, values.preferredHeight + 24f));
+        UpdateLayout();
+    }
+
+    private void UpdateLayout()
+    {
+        RectTransform parent = panel.parent as RectTransform;
+        if (parent == null || parent.rect.width <= 0f || parent.rect.height <= 0f)
+            return; // Canvas may not have its screen size yet during OnEnable.
+
+        const float width = 340f;
+        const float padding = 12f;
+        Vector2 topLeft = new Vector2(0f, 1f);
+        panel.anchorMin = panel.anchorMax = topLeft;
+        panel.pivot = topLeft;
+        panel.localRotation = Quaternion.identity;
+
+        RectTransform textRect = values.rectTransform;
+        textRect.anchorMin = textRect.anchorMax = topLeft;
+        textRect.pivot = topLeft;
+        textRect.localRotation = Quaternion.identity;
+        textRect.localScale = Vector3.one;
+        textRect.anchoredPosition3D = new Vector3(padding, -padding, 0f);
+        textRect.sizeDelta = new Vector2(width - padding * 2f, 1f);
+        values.alignment = TextAnchor.UpperLeft;
+        values.horizontalOverflow = HorizontalWrapMode.Wrap;
+        values.verticalOverflow = VerticalWrapMode.Truncate;
+
+        float height = Mathf.Max(360f, Mathf.Ceil(values.preferredHeight) + padding * 2f);
+        panel.sizeDelta = new Vector2(width, height);
+        textRect.sizeDelta = new Vector2(width - padding * 2f, height - padding * 2f);
+
+        // Measure in the parent canvas' units, not Screen pixels. Fit only this
+        // panel, preserving the shared CanvasScaler and all other UI layouts.
+        float margin = Mathf.Min(12f, Mathf.Min(parent.rect.width, parent.rect.height) * 0.05f);
+        float scale = Mathf.Min(1f, Mathf.Min(
+            (parent.rect.width - margin * 2f) / width,
+            (parent.rect.height - margin * 2f) / height));
+        panel.localScale = Vector3.one * scale;
+        panel.anchoredPosition3D = new Vector3(margin, -margin, 0f);
     }
 
     private static string StateName(NpcState state)

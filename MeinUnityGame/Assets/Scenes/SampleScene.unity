@@ -4283,6 +4283,8 @@ MonoBehaviour:
   roadRoot: {fileID: 2200000001}
   home: {fileID: 2220000031}
   workplace: {fileID: 2220000081}
+  tavern: {fileID: 2220000051}
+  well: {fileID: 2220000091}
   homeLabel: Wohnhaus 1.Haus (3)
   workplaceLabel: Feld
   work:
@@ -4294,6 +4296,15 @@ MonoBehaviour:
     recoveryPerSleepHour: 8
     sleepThreshold: 80
     wakeThreshold: 16
+  supplies:
+    initialSatiation: 100
+    initialHydration: 100
+    satiationLossPerHour: 2
+    hydrationLossPerHour: 4
+    hungerThreshold: 20
+    thirstThreshold: 20
+    eatingMinutes: 30
+    drinkingMinutes: 10
   walkingMetresPerSecond: 1.5
   bodyHeightOffset: 1
 --- !u!114 &2400000006
@@ -4542,7 +4553,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: "Hans – Bauer\nZustand: Wird geladen\nZiel: Wird geladen\nMüdigkeit: Wird geladen\nArbeitsstatus: Wird geladen"
+  m_Text: "Hans – Bauer\nZustand: Wird geladen\nZiel: Wird geladen\nSättigung: Wird geladen\nFlüssigkeit: Wird geladen\nEnergie: Wird geladen\nArbeitsstatus: Wird geladen"
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

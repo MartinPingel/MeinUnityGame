@@ -15,16 +15,18 @@ public sealed class NpcAgent : MonoBehaviour
     [SerializeField] private Transform roadRoot;
     [SerializeField] private Transform home;
     [SerializeField] private Transform workplace;
+    [SerializeField] private Transform tavern;
+    [SerializeField] private Transform well;
     [SerializeField] private string homeLabel = "Zuhause";
     [SerializeField] private string workplaceLabel = "Arbeitsplatz";
 
-    [Header("Arbeit und Muedigkeit - vor Play einstellen")]
+    [Header("Arbeit, Energie und Versorgung - vor Play einstellen")]
     [SerializeField] private WorkSchedule work = new WorkSchedule();
     [SerializeField] private FatigueSettings fatigue = new FatigueSettings();
+    [SerializeField] private SupplySettings supplies = new SupplySettings();
     [SerializeField, Min(0.1f)] private float walkingMetresPerSecond = 1.5f;
     [SerializeField] private float bodyHeightOffset = 1f;
 
-    private Vector3[] route;
     private NpcSimulation simulation;
 
     public string NpcName => npcName;
@@ -33,15 +35,17 @@ public sealed class NpcAgent : MonoBehaviour
     public NpcSimulation Simulation => simulation;
     public string WorkHours => $"{work.startHour:00}:00–{work.endHour:00}:00";
     public string TargetName => simulation == null ? "Nicht bereit" :
-        simulation.State == NpcState.Working || simulation.State == NpcState.GoingToWork
-            ? workplaceLabel : homeLabel;
+        simulation.Target == NpcPlace.Tavern ? "Taverne" :
+        simulation.Target == NpcPlace.Well ? "Brunnen" :
+        simulation.Target == NpcPlace.Work ? workplaceLabel : homeLabel;
 
     private void OnEnable()
     {
         try
         {
-            if (clock == null || home == null || workplace == null || roadRoot == null)
-                throw new InvalidOperationException("NPC needs clock, road network, home and workplace references.");
+            if (clock == null || home == null || workplace == null || roadRoot == null ||
+                tavern == null || well == null)
+                throw new InvalidOperationException("NPC needs clock, roads, home, workplace, tavern and well references.");
             if (walkingMetresPerSecond <= 0f || float.IsNaN(walkingMetresPerSecond) ||
                 float.IsInfinity(walkingMetresPerSecond))
                 throw new InvalidOperationException("NPC walking speed must be finite and positive.");
@@ -49,10 +53,8 @@ public sealed class NpcAgent : MonoBehaviour
             if (simulation == null)
             {
                 Physics.SyncTransforms();
-                route = RoadRouter.FindRoute(roadRoot, home.position, workplace.position);
-                double length = 0d;
-                for (int i = 1; i < route.Length; i++) length += Vector3.Distance(route[i - 1], route[i]);
-                simulation = new NpcSimulation(length, work, fatigue);
+                var navigation = new SceneNavigation(roadRoot, home, workplace, tavern, well);
+                simulation = new NpcSimulation(navigation, work, fatigue, supplies);
             }
             // Initialization and re-enabling catch up from the same baseline; nothing is reset.
             Advance(clock.TotalGameMinutes);
@@ -86,22 +88,38 @@ public sealed class NpcAgent : MonoBehaviour
 
     private void ApplyPose()
     {
-        double remaining = simulation.DistanceFromHome;
-        Vector3 position = route[0], direction = Vector3.forward;
-        for (int i = 1; i < route.Length; i++)
-        {
-            Vector3 segment = route[i] - route[i - 1];
-            double length = segment.magnitude;
-            direction = segment.normalized;
-            if (remaining <= length || i == route.Length - 1)
-            {
-                position = Vector3.Lerp(route[i - 1], route[i], (float)(remaining / length));
-                break;
-            }
-            remaining -= length;
-        }
-        if (simulation.State == NpcState.GoingHome) direction = -direction;
+        Vector3 position = ToVector(simulation.Position), direction = ToVector(simulation.Facing);
         transform.position = position + Vector3.up * bodyHeightOffset;
         if (direction.sqrMagnitude > 0f) transform.rotation = Quaternion.LookRotation(direction);
+    }
+
+    private static Vector3 ToVector(NpcPoint point) => new Vector3((float)point.X, (float)point.Y, (float)point.Z);
+    private static NpcPoint ToPoint(Vector3 point) => new NpcPoint(point.x, point.y, point.z);
+
+    /// <summary>Read-only adapter to the unchanged village road router.</summary>
+    private sealed class SceneNavigation : INpcNavigation
+    {
+        private readonly Transform roads;
+        private readonly NpcPoint[] places;
+
+        public SceneNavigation(Transform roads, Transform home, Transform work, Transform tavern, Transform well)
+        {
+            this.roads = roads;
+            places = new[] { ToPoint(home.position), ToPoint(work.position),
+                ToPoint(tavern.position), ToPoint(well.position) };
+            // Fail at initialization if any required place is disconnected.
+            foreach (NpcPlace place in Enum.GetValues(typeof(NpcPlace)))
+                FindRoute(places[0], place);
+        }
+
+        public NpcPoint GetPlace(NpcPlace place) => places[(int)place];
+
+        public NpcPoint[] FindRoute(NpcPoint from, NpcPlace destination)
+        {
+            Vector3[] path = RoadRouter.FindRoute(roads, ToVector(from), ToVector(GetPlace(destination)));
+            var result = new NpcPoint[path.Length];
+            for (int i = 0; i < path.Length; i++) result[i] = ToPoint(path[i]);
+            return result;
+        }
     }
 }

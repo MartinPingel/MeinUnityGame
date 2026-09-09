@@ -1,3 +1,4 @@
+using System.Globalization;
 using UnityEngine;
 using UnityEngine.UI;
 using Village.Npc;
@@ -38,6 +39,7 @@ public sealed class NpcDebugDisplay : MonoBehaviour
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     private NpcAgent agent;
+    private static readonly CultureInfo GermanNumbers = CultureInfo.GetCultureInfo("de-DE");
 
     private bool IsObserved => observerCamera != null && observerCamera.IsObserving(transform);
 
@@ -72,7 +74,9 @@ public sealed class NpcDebugDisplay : MonoBehaviour
         else
         {
             text += $"Zustand: {StateName(model.State)}\nZiel: {agent.TargetName}\n";
-            text += $"Müdigkeit: {model.Fatigue:0.0} / 100\n";
+            text += $"Sättigung: {model.Satiation.ToString("0.0", GermanNumbers)} / 100\n";
+            text += $"Flüssigkeit: {model.Hydration.ToString("0.0", GermanNumbers)} / 100\n";
+            text += $"Energie: {model.Energy.ToString("0.0", GermanNumbers)} / 100\n";
             text += $"Arbeitszeit: {agent.WorkHours}\n";
             text += $"Arbeitsstatus: {(model.State == NpcState.Working ? "Arbeitet" : model.IsWorkTime ? "Arbeitszeit, derzeit abwesend" : "Feierabend")}\n";
             text += $"Ruhebedarf: {(model.NeedsRest ? "Ja" : "Nein")}\n";
@@ -131,6 +135,10 @@ public sealed class NpcDebugDisplay : MonoBehaviour
             case NpcState.Working: return "Arbeitet";
             case NpcState.GoingHome: return "Geht nach Hause";
             case NpcState.Sleeping: return "Schläft";
+            case NpcState.GoingToEat: return "Geht zur Taverne";
+            case NpcState.Eating: return "Isst";
+            case NpcState.GoingToDrink: return "Geht zum Brunnen";
+            case NpcState.Drinking: return "Trinkt";
             default: return state.ToString();
         }
     }

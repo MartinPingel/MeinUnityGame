@@ -2,7 +2,8 @@ using System;
 
 namespace Village.Npc
 {
-    public enum NpcState { Home, GoingToWork, Working, GoingHome, Sleeping }
+    public enum NpcState { Home, GoingToWork, Working, GoingHome, Sleeping,
+        GoingToEat, Eating, GoingToDrink, Drinking }
 
     [Serializable]
     public sealed class WorkSchedule
@@ -35,6 +36,7 @@ namespace Village.Npc
         }
     }
 
+    // Existing scene data stays compatible; simulation converts these to Energy = 100 - Fatigue.
     [Serializable]
     public sealed class FatigueSettings
     {
@@ -54,6 +56,35 @@ namespace Village.Npc
                 recoveryPerSleepHour <= 0d || wakeThreshold < 0d || sleepThreshold > 100d ||
                 wakeThreshold >= sleepThreshold)
                 throw new ArgumentException("Invalid fatigue rates or sleep/wake thresholds.");
+        }
+    }
+
+    [Serializable]
+    public sealed class SupplySettings
+    {
+        public double initialSatiation = 100d;
+        public double initialHydration = 100d;
+        public double satiationLossPerHour = 2d;
+        public double hydrationLossPerHour = 4d;
+        public double hungerThreshold = 20d;
+        public double thirstThreshold = 20d;
+        public double eatingMinutes = 30d;
+        public double drinkingMinutes = 10d;
+
+        public void Validate()
+        {
+            double[] values = { initialSatiation, initialHydration, satiationLossPerHour,
+                hydrationLossPerHour, hungerThreshold, thirstThreshold, eatingMinutes, drinkingMinutes };
+            foreach (double value in values)
+                if (double.IsNaN(value) || double.IsInfinity(value))
+                    throw new ArgumentException("Supply settings must be finite.");
+            if (initialSatiation < 0d || initialSatiation > 100d ||
+                initialHydration < 0d || initialHydration > 100d ||
+                satiationLossPerHour < 0d || hydrationLossPerHour < 0d ||
+                hungerThreshold < 0d || hungerThreshold >= 100d ||
+                thirstThreshold < 0d || thirstThreshold >= 100d ||
+                eatingMinutes <= 0d || drinkingMinutes <= 0d)
+                throw new ArgumentException("Invalid supply levels, rates, thresholds or service duration.");
         }
     }
 }

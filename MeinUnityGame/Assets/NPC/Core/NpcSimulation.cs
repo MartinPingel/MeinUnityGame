@@ -1,52 +1,86 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
 
 namespace Village.Npc
 {
     /// <summary>
-    /// Deterministic, Unity-independent simulation of work, rest and travel along one
-    /// reversible home/work route. Advances at decision boundaries, never frame by frame.
-    /// Add future needs to this model's boundary calculation and state transitions.
+    /// Event-boundary simulation shared by normal ticking and waiting.
+    /// Priority: critical thirst, critical hunger, energy, work/home.
+    /// Movement consumes game time along real routes, including interrupted journeys.
     /// </summary>
     public sealed class NpcSimulation
     {
         private const double Epsilon = 1e-9;
         private readonly WorkSchedule work;
-        private readonly FatigueSettings fatigue;
-        private bool seekingRest;
+        private readonly SupplySettings supplies;
+        private readonly INpcNavigation navigation;
+        private readonly double energyLoss, energyRecovery, sleepEnergy, wakeEnergy;
+        private bool seekingRest, seekingFood, seekingWater;
+        private NpcPoint[] route;
+        private int nextPoint;
+        private double serviceRemaining;
 
         public double TotalMinutes { get; private set; }
-        public double Fatigue { get; private set; }
+        public double Energy { get; private set; }
+        public double Fatigue => 100d - Energy; // Compatibility for existing callers.
+        public double Satiation { get; private set; }
+        public double Hydration { get; private set; }
         public double RouteLength { get; }
-        public double DistanceFromHome { get; private set; }
+        public double DistanceFromHome => NpcPoint.Distance(Position, navigation.GetPlace(NpcPlace.Home));
+        public NpcPoint Position { get; private set; }
+        public NpcPoint Facing { get; private set; }
+        public NpcPlace Target { get; private set; }
         public NpcState State { get; private set; }
         public double WorkedMinutes { get; private set; }
         public double SleptMinutes { get; private set; }
         public double TravelledMetres { get; private set; }
+        public double MealsCompleted { get; private set; }
+        public double DrinksCompleted { get; private set; }
         public bool IsWorkTime => work.IsWorkTime(TotalMinutes);
         public bool NeedsRest => seekingRest;
 
         public NpcSimulation(double routeLength, WorkSchedule schedule, FatigueSettings settings)
+            : this(new HomeWorkNavigation(routeLength), schedule, settings,
+                new SupplySettings { satiationLossPerHour = 0d, hydrationLossPerHour = 0d }) { }
+
+        public NpcSimulation(INpcNavigation navigation, WorkSchedule schedule,
+            FatigueSettings settings, SupplySettings supplySettings)
         {
+            if (navigation == null) throw new ArgumentNullException(nameof(navigation));
             schedule.Validate();
             settings.Validate();
-            if (double.IsNaN(routeLength) || double.IsInfinity(routeLength) || routeLength <= 0d)
-                throw new ArgumentOutOfRangeException(nameof(routeLength));
-            // Own copies keep an in-progress simulation stable if inspector data changes.
+            supplySettings.Validate();
+            this.navigation = navigation;
             work = new WorkSchedule { startHour = schedule.startHour, endHour = schedule.endHour };
-            fatigue = new FatigueSettings
+            supplies = new SupplySettings
             {
-                initialFatigue = settings.initialFatigue,
-                gainPerAwakeHour = settings.gainPerAwakeHour,
-                recoveryPerSleepHour = settings.recoveryPerSleepHour,
-                sleepThreshold = settings.sleepThreshold,
-                wakeThreshold = settings.wakeThreshold
+                initialSatiation = supplySettings.initialSatiation,
+                initialHydration = supplySettings.initialHydration,
+                satiationLossPerHour = supplySettings.satiationLossPerHour,
+                hydrationLossPerHour = supplySettings.hydrationLossPerHour,
+                hungerThreshold = supplySettings.hungerThreshold,
+                thirstThreshold = supplySettings.thirstThreshold,
+                eatingMinutes = supplySettings.eatingMinutes,
+                drinkingMinutes = supplySettings.drinkingMinutes
             };
-            RouteLength = routeLength;
-            Fatigue = fatigue.initialFatigue;
-            State = NpcState.Sleeping; // The baseline is day 1 at midnight, at home.
-            seekingRest = true;
+            Energy = 100d - settings.initialFatigue;
+            energyLoss = settings.gainPerAwakeHour;
+            energyRecovery = settings.recoveryPerSleepHour;
+            sleepEnergy = 100d - settings.sleepThreshold;
+            wakeEnergy = 100d - settings.wakeThreshold;
+            Satiation = supplies.initialSatiation;
+            Hydration = supplies.initialHydration;
+            Position = navigation.GetPlace(NpcPlace.Home);
+            Facing = new NpcPoint(0d, 0d, 1d);
+            NpcPoint[] workRoute = navigation.FindRoute(Position, NpcPlace.Work);
+            double workDistance = 0d;
+            for (int i = 1; i < workRoute.Length; i++)
+                workDistance += NpcPoint.Distance(workRoute[i - 1], workRoute[i]);
+            RouteLength = workDistance;
+            State = NpcState.Sleeping;
+            seekingRest = Energy < wakeEnergy - Epsilon;
             Decide();
         }
 
@@ -56,19 +90,16 @@ namespace Village.Npc
                 throw new ArgumentOutOfRangeException(nameof(targetMinutes));
             if (double.IsNaN(metresPerGameMinute) || double.IsInfinity(metresPerGameMinute) || metresPerGameMinute <= 0d)
                 throw new ArgumentOutOfRangeException(nameof(metresPerGameMinute));
-
-            // Exact repeated midnight states can be fast-forwarded, including all totals.
-            // Future needs must extend the key and accumulated totals, or disable this optimization.
-            Dictionary<string, Snapshot> midnights = targetMinutes - TotalMinutes >= 2880d
+            var midnights = targetMinutes - TotalMinutes >= 2880d
                 ? new Dictionary<string, Snapshot>() : null;
             while (targetMinutes - TotalMinutes > Epsilon)
             {
                 Decide();
+                // Only exactly repeated COMPLETE states may be skipped. Supplies,
+                // destination, route and interrupted needs all affect future decisions.
                 if (midnights != null && TotalMinutes % 1440d == 0d)
                 {
-                    string key = ((int)State) + "|" + seekingRest + "|" +
-                        Fatigue.ToString("R", CultureInfo.InvariantCulture) + "|" +
-                        DistanceFromHome.ToString("R", CultureInfo.InvariantCulture);
+                    string key = CycleKey();
                     if (midnights.TryGetValue(key, out Snapshot previous))
                     {
                         double period = TotalMinutes - previous.time;
@@ -78,85 +109,141 @@ namespace Village.Npc
                             WorkedMinutes += (WorkedMinutes - previous.worked) * cycles;
                             SleptMinutes += (SleptMinutes - previous.slept) * cycles;
                             TravelledMetres += (TravelledMetres - previous.travelled) * cycles;
+                            MealsCompleted += (MealsCompleted - previous.meals) * cycles;
+                            DrinksCompleted += (DrinksCompleted - previous.drinks) * cycles;
                             TotalMinutes += period * cycles;
                             midnights.Clear();
                             continue;
                         }
                     }
-                    else
-                    {
-                        midnights.Add(key, new Snapshot
-                        {
-                            time = TotalMinutes, worked = WorkedMinutes,
-                            slept = SleptMinutes, travelled = TravelledMetres
-                        });
-                    }
+                    else if (midnights.Count < 4096)
+                        midnights.Add(key, new Snapshot { time = TotalMinutes, worked = WorkedMinutes,
+                            slept = SleptMinutes, travelled = TravelledMetres,
+                            meals = MealsCompleted, drinks = DrinksCompleted });
                 }
 
                 double nextMidnight = (Math.Floor(TotalMinutes / 1440d) + 1d) * 1440d;
                 double step = Math.Min(targetMinutes - TotalMinutes,
                     Math.Min(work.NextBoundary(TotalMinutes), nextMidnight) - TotalMinutes);
-                double arrivalIn = double.PositiveInfinity;
-                double fatigueIn = double.PositiveInfinity;
                 bool sleeping = State == NpcState.Sleeping;
-                bool toWork = State == NpcState.GoingToWork;
-                bool toHome = State == NpcState.GoingHome;
-
-                if (toWork) arrivalIn = (RouteLength - DistanceFromHome) / metresPerGameMinute;
-                if (toHome) arrivalIn = DistanceFromHome / metresPerGameMinute;
-                if (sleeping)
-                    fatigueIn = (Fatigue - fatigue.wakeThreshold) / (fatigue.recoveryPerSleepHour / 60d);
-                else if (!seekingRest)
-                    fatigueIn = (fatigue.sleepThreshold - Fatigue) / (fatigue.gainPerAwakeHour / 60d);
-
-                step = Math.Min(step, Math.Min(arrivalIn, fatigueIn));
-                if (step <= 0d)
+                bool travelling = route != null && nextPoint < route.Length;
+                bool eating = State == NpcState.Eating, drinking = State == NpcState.Drinking;
+                double energyIn = sleeping ? (wakeEnergy - Energy) / (energyRecovery / 60d)
+                    : !seekingRest ? (Energy - sleepEnergy) / (energyLoss / 60d) : double.PositiveInfinity;
+                double foodIn = !seekingFood && supplies.satiationLossPerHour > 0d
+                    ? (Satiation - supplies.hungerThreshold) / (supplies.satiationLossPerHour / 60d)
+                    : double.PositiveInfinity;
+                double waterIn = !seekingWater && supplies.hydrationLossPerHour > 0d
+                    ? (Hydration - supplies.thirstThreshold) / (supplies.hydrationLossPerHour / 60d)
+                    : double.PositiveInfinity;
+                double arrivalIn = travelling ? NpcPoint.Distance(Position, route[nextPoint]) / metresPerGameMinute
+                    : double.PositiveInfinity;
+                step = Math.Min(step, Math.Min(Math.Min(energyIn, foodIn), Math.Min(waterIn, arrivalIn)));
+                if (eating || drinking) step = Math.Min(step, serviceRemaining);
+                if (step <= 0d || TotalMinutes + step == TotalMinutes)
                     throw new InvalidOperationException("NPC simulation could not advance.");
 
                 if (State == NpcState.Working) WorkedMinutes += step;
                 if (sleeping) SleptMinutes += step;
-                Fatigue = Math.Max(0d, Math.Min(100d, Fatigue + step *
-                    (sleeping ? -fatigue.recoveryPerSleepHour : fatigue.gainPerAwakeHour) / 60d));
-                if (toWork || toHome)
+                Energy = Clamp(Energy + step * (sleeping ? energyRecovery : -energyLoss) / 60d);
+                Satiation = Clamp(Satiation - step * supplies.satiationLossPerHour / 60d);
+                Hydration = Clamp(Hydration - step * supplies.hydrationLossPerHour / 60d);
+                if (step == energyIn) Energy = sleeping ? wakeEnergy : sleepEnergy;
+                if (step == foodIn) Satiation = supplies.hungerThreshold;
+                if (step == waterIn) Hydration = supplies.thirstThreshold;
+                if (travelling)
                 {
-                    double distance = Math.Min(metresPerGameMinute * step,
-                        toWork ? RouteLength - DistanceFromHome : DistanceFromHome);
-                    DistanceFromHome += toWork ? distance : -distance;
-                    TravelledMetres += distance;
-                    if (step == arrivalIn) DistanceFromHome = toWork ? RouteLength : 0d;
+                    NpcPoint to = route[nextPoint];
+                    double length = NpcPoint.Distance(Position, to);
+                    double travelled = Math.Min(length, metresPerGameMinute * step);
+                    Facing = new NpcPoint(to.X - Position.X, to.Y - Position.Y, to.Z - Position.Z);
+                    Position = step == arrivalIn ? to : NpcPoint.Lerp(Position, to, travelled / length);
+                    TravelledMetres += travelled;
+                    if (step == arrivalIn) nextPoint++;
                 }
-                if (step == fatigueIn)
-                    Fatigue = sleeping ? fatigue.wakeThreshold : fatigue.sleepThreshold;
+                if (eating || drinking)
+                {
+                    serviceRemaining -= step;
+                    if (serviceRemaining <= Epsilon)
+                    {
+                        if (eating) { Satiation = 100d; seekingFood = false; MealsCompleted++; }
+                        if (drinking) { Hydration = 100d; seekingWater = false; DrinksCompleted++; }
+                        serviceRemaining = 0d;
+                        State = NpcState.Home; // Neutral until Decide re-evaluates current priorities.
+                    }
+                }
                 TotalMinutes += step;
             }
-
             TotalMinutes = targetMinutes;
             Decide();
         }
 
         private void Decide()
         {
-            if (State == NpcState.Sleeping && Fatigue > fatigue.wakeThreshold + Epsilon)
-                return;
-            if (State == NpcState.Sleeping)
-                seekingRest = false;
-            if (Fatigue >= fatigue.sleepThreshold - Epsilon)
-                seekingRest = true;
-
-            if (DistanceFromHome < Epsilon) DistanceFromHome = 0d;
-            if (RouteLength - DistanceFromHome < Epsilon) DistanceFromHome = RouteLength;
-
-            if (seekingRest)
-                State = DistanceFromHome == 0d ? NpcState.Sleeping : NpcState.GoingHome;
-            else if (work.IsWorkTime(TotalMinutes))
-                State = DistanceFromHome == RouteLength ? NpcState.Working : NpcState.GoingToWork;
-            else
-                State = DistanceFromHome == 0d ? NpcState.Home : NpcState.GoingHome;
+            if (Hydration <= supplies.thirstThreshold + Epsilon) seekingWater = true;
+            if (Satiation <= supplies.hungerThreshold + Epsilon) seekingFood = true;
+            if (Energy <= sleepEnergy + Epsilon) seekingRest = true;
+            if (State == NpcState.Sleeping && Energy >= wakeEnergy - Epsilon) seekingRest = false;
+            if (seekingWater) SetGoal(NpcPlace.Well, NpcState.GoingToDrink, NpcState.Drinking);
+            else if (seekingFood) SetGoal(NpcPlace.Tavern, NpcState.GoingToEat, NpcState.Eating);
+            else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
+            else if (work.IsWorkTime(TotalMinutes)) SetGoal(NpcPlace.Work, NpcState.GoingToWork, NpcState.Working);
+            else SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Home);
         }
 
-        private struct Snapshot
+        private void SetGoal(NpcPlace destination, NpcState travellingState, NpcState arrivalState)
         {
-            public double time, worked, slept, travelled;
+            if (NpcPoint.Distance(Position, navigation.GetPlace(destination)) < Epsilon)
+            {
+                Position = navigation.GetPlace(destination);
+                route = null;
+                nextPoint = 0;
+                if (State != arrivalState)
+                    serviceRemaining = arrivalState == NpcState.Eating ? supplies.eatingMinutes
+                        : arrivalState == NpcState.Drinking ? supplies.drinkingMinutes : 0d;
+                Target = destination;
+                State = arrivalState;
+                return;
+            }
+            if (Target != destination || route == null || nextPoint >= route.Length)
+            {
+                route = navigation.FindRoute(Position, destination);
+                if (route == null || route.Length < 2 ||
+                    NpcPoint.Distance(route[0], Position) > 0.001d ||
+                    NpcPoint.Distance(route[route.Length - 1], navigation.GetPlace(destination)) > 0.001d)
+                    throw new InvalidOperationException("NPC route does not connect its current position to the destination.");
+                // Keep the precise simulation position, avoiding a jump from float conversion.
+                route[0] = Position;
+                route[route.Length - 1] = navigation.GetPlace(destination);
+                nextPoint = 1;
+            }
+            while (nextPoint < route.Length && NpcPoint.Distance(Position, route[nextPoint]) < Epsilon)
+                nextPoint++;
+            Target = destination;
+            State = travellingState;
+            serviceRemaining = 0d; // A higher-priority interruption cancels unfinished service.
+            if (nextPoint < route.Length)
+                Facing = new NpcPoint(route[nextPoint].X - Position.X,
+                    route[nextPoint].Y - Position.Y, route[nextPoint].Z - Position.Z);
         }
+
+        private string CycleKey()
+        {
+            var key = new StringBuilder();
+            key.Append((int)State).Append('|').Append((int)Target).Append('|')
+                .Append(seekingRest).Append('|').Append(seekingFood).Append('|').Append(seekingWater);
+            foreach (double value in new[] { Energy, Satiation, Hydration, serviceRemaining,
+                Position.X, Position.Y, Position.Z, Facing.X, Facing.Y, Facing.Z })
+                key.Append('|').Append(value.ToString("R", CultureInfo.InvariantCulture));
+            if (route != null)
+                for (int i = nextPoint; i < route.Length; i++)
+                    key.Append('|').Append(route[i].X.ToString("R", CultureInfo.InvariantCulture))
+                        .Append(',').Append(route[i].Y.ToString("R", CultureInfo.InvariantCulture))
+                        .Append(',').Append(route[i].Z.ToString("R", CultureInfo.InvariantCulture));
+            return key.ToString();
+        }
+
+        private static double Clamp(double value) => Math.Max(0d, Math.Min(100d, value));
+        private struct Snapshot { public double time, worked, slept, travelled, meals, drinks; }
     }
 }

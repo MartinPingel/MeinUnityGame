@@ -3,9 +3,8 @@ using UnityEngine;
 using UnityEngine.UI;
 using Village.Npc;
 
-/// <summary>Development-only, scene-bound Hans display. Visibility follows the Hans observer camera.</summary>
+/// <summary>Development-only, scene-bound NPC display. Shows only the current observer target.</summary>
 [DisallowMultipleComponent]
-[RequireComponent(typeof(NpcAgent))]
 public sealed class NpcDebugDisplay : MonoBehaviour
 {
     [SerializeField] private HansObserverCamera observerCamera;
@@ -15,10 +14,10 @@ public sealed class NpcDebugDisplay : MonoBehaviour
     private void OnEnable()
     {
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-        agent = GetComponent<NpcAgent>();
+        agent = observerCamera != null ? observerCamera.CurrentNpc : null;
         if (panel == null || values == null || !values.transform.IsChildOf(panel))
         {
-            Debug.LogError("Hans Debug: Panel/Text in SampleScene nicht korrekt zugewiesen.", this);
+            Debug.LogError("NPC Debug: Panel/Text in SampleScene nicht korrekt zugewiesen.", this);
             if (panel != null) panel.gameObject.SetActive(false);
             enabled = false;
             return;
@@ -41,10 +40,11 @@ public sealed class NpcDebugDisplay : MonoBehaviour
     private NpcAgent agent;
     private static readonly CultureInfo GermanNumbers = CultureInfo.GetCultureInfo("de-DE");
 
-    private bool IsObserved => observerCamera != null && observerCamera.IsObserving(transform);
+    private bool IsObserved => observerCamera != null && observerCamera.CurrentNpc != null;
 
     private void LateUpdate()
     {
+        agent = observerCamera != null ? observerCamera.CurrentNpc : null;
         bool visible = IsObserved;
         if (panel.gameObject.activeSelf != visible)
             panel.gameObject.SetActive(visible);
@@ -130,7 +130,7 @@ public sealed class NpcDebugDisplay : MonoBehaviour
     {
         switch (state)
         {
-            case NpcState.Home: return "Zuhause";
+            case NpcState.Home: return "Freizeit (zuhause)";
             case NpcState.GoingToWork: return "Geht zur Arbeit";
             case NpcState.Working: return "Arbeitet";
             case NpcState.GoingHome: return "Geht nach Hause";

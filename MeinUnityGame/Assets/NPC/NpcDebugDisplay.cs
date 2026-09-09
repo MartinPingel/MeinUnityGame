@@ -1,28 +1,44 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Village.Npc;
 
-/// <summary>Development-only NPC inspector overlay. F3 toggles it; never drawn in release builds.</summary>
+/// <summary>Development-only, scene-bound Hans display. F3 toggles the existing panel.</summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(NpcAgent))]
 public sealed class NpcDebugDisplay : MonoBehaviour
 {
-    [SerializeField] private bool showDebug = true;
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-    private NpcAgent agent;
-    private GameObject uiRoot;
-    private RectTransform panel;
-    private Text values;
+    [SerializeField] private bool showDebug;
+    [SerializeField] private RectTransform panel;
+    [SerializeField] private Text values;
 
     private void OnEnable()
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         agent = GetComponent<NpcAgent>();
-        if (uiRoot == null) BuildUI();
+        if (panel == null || values == null || !values.transform.IsChildOf(panel))
+        {
+            Debug.LogError("Hans Debug: Panel/Text in SampleScene nicht korrekt zugewiesen.", this);
+            if (panel != null) panel.gameObject.SetActive(false);
+            enabled = false;
+            return;
+        }
+        // Explicit runtime font, independent of GUI skins or TMP resource imports.
+        values.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         RefreshDisplay();
-        uiRoot.SetActive(showDebug);
+        panel.gameObject.SetActive(showDebug);
+#else
+        if (panel != null) panel.gameObject.SetActive(false);
+#endif
     }
+
+    private void OnDisable()
+    {
+        if (panel != null) panel.gameObject.SetActive(false);
+    }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private NpcAgent agent;
 
     private void Update()
     {
@@ -30,74 +46,18 @@ public sealed class NpcDebugDisplay : MonoBehaviour
         {
             showDebug = !showDebug;
             RefreshDisplay();
-            uiRoot.SetActive(showDebug);
+            panel.gameObject.SetActive(showDebug);
         }
     }
 
     private void LateUpdate()
     {
-        // Read after clock/wait updates; toggling never advances or resets Hans.
-        if (uiRoot.activeSelf != showDebug) uiRoot.SetActive(showDebug);
-        if (showDebug) RefreshDisplay();
-    }
-
-    private void OnDisable()
-    {
-        if (uiRoot != null) uiRoot.SetActive(false);
-    }
-
-    private void OnDestroy()
-    {
-        if (uiRoot != null) Destroy(uiRoot);
-    }
-
-    private void BuildUI()
-    {
-        uiRoot = new GameObject("Hans Debug UI", typeof(RectTransform), typeof(Canvas),
-            typeof(CanvasScaler));
-        uiRoot.SetActive(false);
-        uiRoot.layer = 5;
-        SceneManager.MoveGameObjectToScene(uiRoot, gameObject.scene);
-        Canvas canvas = uiRoot.GetComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.worldCamera = null;
-        canvas.targetDisplay = 0;
-        canvas.sortingOrder = 90; // Keep the existing clock/wait canvas above debug UI.
-        CanvasScaler scaler = uiRoot.GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1280f, 720f);
-        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
-
-        GameObject panelObject = new GameObject("Debug Panel", typeof(RectTransform), typeof(Image));
-        panelObject.layer = 5;
-        panel = panelObject.GetComponent<RectTransform>();
-        panel.SetParent(uiRoot.transform, false);
-        panel.anchorMin = panel.anchorMax = new Vector2(0f, 1f);
-        panel.pivot = new Vector2(0f, 1f);
-        panel.anchoredPosition = new Vector2(12f, -76f);
-        panel.sizeDelta = new Vector2(340f, 310f);
-        Image background = panelObject.GetComponent<Image>();
-        background.color = new Color(0.04f, 0.05f, 0.07f, 0.96f);
-        background.raycastTarget = false;
-
-        GameObject textObject = new GameObject("Hans Values", typeof(RectTransform), typeof(Text));
-        textObject.layer = 5;
-        RectTransform textRect = textObject.GetComponent<RectTransform>();
-        textRect.SetParent(panel, false);
-        textRect.anchorMin = Vector2.zero;
-        textRect.anchorMax = Vector2.one;
-        textRect.offsetMin = new Vector2(12f, 10f);
-        textRect.offsetMax = new Vector2(-12f, -10f);
-        values = textObject.GetComponent<Text>();
-        values.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        values.fontSize = 16;
-        values.color = Color.white;
-        values.alignment = TextAnchor.UpperLeft;
-        values.horizontalOverflow = HorizontalWrapMode.Wrap;
-        values.verticalOverflow = VerticalWrapMode.Overflow;
-        values.supportRichText = false;
-        values.raycastTarget = false;
-        // No GraphicRaycaster: this read-only panel cannot intercept game/wait input.
+        if (panel.gameObject.activeSelf != showDebug)
+            panel.gameObject.SetActive(showDebug);
+        if (!showDebug) return;
+        // Draw this panel last on the shared canvas, including after WaitMenu.Awake.
+        panel.SetAsLastSibling();
+        RefreshDisplay();
     }
 
     private void RefreshDisplay()
@@ -129,7 +89,7 @@ public sealed class NpcDebugDisplay : MonoBehaviour
         }
         values.text = text;
         // Leave room for wrapped targets/status instead of clipping their values.
-        panel.sizeDelta = new Vector2(340f, Mathf.Max(310f, values.preferredHeight + 20f));
+        panel.sizeDelta = new Vector2(340f, Mathf.Max(360f, values.preferredHeight + 24f));
     }
 
     private static string StateName(NpcState state)

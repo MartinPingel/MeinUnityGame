@@ -1790,6 +1790,7 @@ GameObject:
   - component: {fileID: 2180000001}
   - component: {fileID: 2180000002}
   - component: {fileID: 2180000003}
+  - component: {fileID: 2180000004}
   m_Layer: 0
   m_Name: GameClock
   m_TagString: Untagged
@@ -1852,6 +1853,19 @@ MonoBehaviour:
   nightAmbientFraction: 0.04
   nightSkyFraction: 0.01
   nightReflectionFraction: 0.02
+--- !u!114 &2180000004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2180000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3fa2bb93570476fb4810af19dc55d93, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  clock: {fileID: 2180000002}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

@@ -3,6 +3,7 @@ using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Test controls for waiting in whole game hours, using the project's Input System.
@@ -25,6 +26,7 @@ public sealed class WaitMenu : MonoBehaviour
     private InputField hoursInput;
     private Text preview;
     private Text status;
+    private Text clockDisplay;
     private Font font;
 
     private void Awake()
@@ -36,8 +38,10 @@ public sealed class WaitMenu : MonoBehaviour
 
     private void OnEnable()
     {
-        if (uiRoot != null)
-            uiRoot.SetActive(true);
+        if (uiRoot == null)
+            BuildUI();
+        uiRoot.SetActive(true);
+        RefreshClockDisplay();
     }
 
     private void Update()
@@ -60,6 +64,18 @@ public sealed class WaitMenu : MonoBehaviour
 
         if (isOpen)
             RefreshPreview();
+    }
+
+    private void LateUpdate()
+    {
+        // Read after clock ticks and wait requests, including jumps across midnight.
+        RefreshClockDisplay();
+    }
+
+    private void RefreshClockDisplay()
+    {
+        if (clockDisplay != null && clock != null)
+            clockDisplay.text = FormatTime(clock.TotalGameMinutes);
     }
 
     /// <summary>
@@ -157,11 +173,36 @@ public sealed class WaitMenu : MonoBehaviour
     private void BuildUI()
     {
         font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        uiRoot = new GameObject("Wait UI", typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster));
-        uiRoot.transform.SetParent(transform, false);
+        // A Screen Space Overlay canvas must remain a scene root, not a child
+        // of GameClock, the player or a camera. OnDestroy still owns its cleanup.
+        uiRoot = new GameObject("GameClock UI", typeof(RectTransform), typeof(Canvas),
+            typeof(CanvasScaler), typeof(GraphicRaycaster));
+        uiRoot.layer = 5;
+        SceneManager.MoveGameObjectToScene(uiRoot, gameObject.scene);
+        RectTransform rootRect = uiRoot.GetComponent<RectTransform>();
+        rootRect.localScale = Vector3.one;
+        rootRect.localRotation = Quaternion.identity;
         Canvas canvas = uiRoot.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.worldCamera = null;
+        canvas.targetDisplay = 0;
         canvas.sortingOrder = 100;
+        canvas.enabled = true;
+
+        // Keep the complete top-anchored controls inside smaller Game windows too.
+        CanvasScaler scaler = uiRoot.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1280f, 720f);
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
+
+        RectTransform clockPanel = MakeRect("Clock", uiRoot.transform, 0f, 12f, 320f, 48f);
+        Image clockBackground = clockPanel.gameObject.AddComponent<Image>();
+        clockBackground.color = new Color(0.04f, 0.05f, 0.07f, 0.96f);
+        clockBackground.raycastTarget = false;
+        clockDisplay = MakeText("", clockPanel, 0f, 0f, 320f, 48f);
+        clockDisplay.fontSize = 24;
+        clockDisplay.fontStyle = FontStyle.Bold;
+        RefreshClockDisplay();
 
         // Create input routing only if this scene does not already have it.
         if (EventSystem.current == null)

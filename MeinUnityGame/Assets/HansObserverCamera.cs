@@ -1,8 +1,9 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System.Collections.Generic;
 
 /// <summary>
-/// Developer-only view override on the existing camera. Cycles player / configured NPCs without controlling them.
+/// Developer-only view override on the existing camera. Discovers active NPCs without controlling them.
 /// Runs after VillagePlayer.LateUpdate so its regular camera and input stay untouched.
 /// </summary>
 [DisallowMultipleComponent]
@@ -11,7 +12,6 @@ using UnityEngine.InputSystem;
 public sealed class HansObserverCamera : MonoBehaviour
 {
     [SerializeField] private bool enableObserver = true;
-    [SerializeField] private NpcAgent[] observedNpcs = new NpcAgent[0];
     [SerializeField, Min(1f)] private float distance = 8f;
     [SerializeField, Range(15f, 65f)] private float pitch = 30f;
     [SerializeField] private float targetHeight = 0.6f;
@@ -23,11 +23,9 @@ public sealed class HansObserverCamera : MonoBehaviour
         {
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (!isActiveAndEnabled || !enableObserver || viewCamera == null ||
-                !viewCamera.isActiveAndEnabled || observedNpcs == null ||
-                observedIndex < 0 || observedIndex >= observedNpcs.Length)
+                !viewCamera.isActiveAndEnabled)
                 return null;
-            NpcAgent npc = observedNpcs[observedIndex];
-            return npc != null && npc.gameObject.activeInHierarchy ? npc : null;
+            return IsAvailable(observedNpc) ? observedNpc : null;
 #else
             return null;
 #endif
@@ -38,7 +36,8 @@ public sealed class HansObserverCamera : MonoBehaviour
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     private Camera viewCamera;
-    private int observedIndex = -1; // -1 is the player's original camera view.
+    private NpcAgent observedNpc; // null is the player's original camera view.
+    private readonly List<NpcAgent> observedNpcs = new List<NpcAgent>();
     private bool hasOverride;
     private Vector3 playerCameraPosition;
     private Quaternion playerCameraRotation;
@@ -52,22 +51,53 @@ public sealed class HansObserverCamera : MonoBehaviour
     {
         if (!enableObserver)
         {
-            observedIndex = -1;
+            observedNpc = null;
             return;
         }
-        if (observedIndex >= 0 && CurrentNpc == null) observedIndex = -1;
+        if (CurrentNpc == null) observedNpc = null;
         if (Application.isFocused && Keyboard.current != null &&
             Keyboard.current.f4Key.wasPressedThisFrame)
         {
-            int next = observedIndex + 1;
-            while (observedNpcs != null && next < observedNpcs.Length)
-            {
-                NpcAgent candidate = observedNpcs[next];
-                if (candidate != null && candidate.gameObject.activeInHierarchy) break;
-                next++;
-            }
-            observedIndex = observedNpcs != null && next < observedNpcs.Length ? next : -1;
+            RefreshNpcs();
+            int next = observedNpc != null ? observedNpcs.IndexOf(observedNpc) + 1 : 0;
+            observedNpc = next < observedNpcs.Count ? observedNpcs[next] : null;
         }
+    }
+
+    private static bool IsAvailable(NpcAgent npc) => npc != null &&
+        npc.gameObject.activeInHierarchy && npc.gameObject.scene.IsValid() &&
+        npc.gameObject.scene.isLoaded;
+
+    private void RefreshNpcs()
+    {
+        // Discover on every key press, including NPCs spawned or enabled since the last cycle.
+        // Keep selection by object reference so insertions/removals cannot silently change targets.
+        observedNpcs.Clear();
+        foreach (NpcAgent npc in FindObjectsByType<NpcAgent>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            if (IsAvailable(npc)) observedNpcs.Add(npc);
+        observedNpcs.Sort(CompareHierarchy);
+    }
+
+    private static int CompareHierarchy(NpcAgent a, NpcAgent b)
+    {
+        int sceneOrder = a.gameObject.scene.handle.CompareTo(b.gameObject.scene.handle);
+        if (sceneOrder != 0) return sceneOrder;
+        List<int> left = HierarchyPath(a.transform), right = HierarchyPath(b.transform);
+        for (int i = 0; i < Mathf.Min(left.Count, right.Count); i++)
+        {
+            int order = left[i].CompareTo(right[i]);
+            if (order != 0) return order;
+        }
+        return left.Count.CompareTo(right.Count);
+    }
+
+    private static List<int> HierarchyPath(Transform target)
+    {
+        var path = new List<int>();
+        for (Transform current = target; current != null; current = current.parent)
+            path.Add(current.GetSiblingIndex());
+        path.Reverse();
+        return path;
     }
 
     private void LateUpdate()
@@ -107,7 +137,8 @@ public sealed class HansObserverCamera : MonoBehaviour
     {
         if (hasOverride)
             transform.SetPositionAndRotation(playerCameraPosition, playerCameraRotation);
-        observedIndex = -1;
+        observedNpc = null;
+        observedNpcs.Clear();
         hasOverride = false;
     }
 #endif

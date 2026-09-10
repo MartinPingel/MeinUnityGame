@@ -11527,6 +11527,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3400000001}
+  - component: {fileID: 3500000000}
+  - component: {fileID: 3500000001}
   m_Layer: 0
   m_Name: Marktstand
   m_TagString: Untagged
@@ -11717,6 +11719,34 @@ MonoBehaviour:
     drinkingMinutes: 10
   walkingMetresPerSecond: 1.5
   bodyHeightOffset: 1
+--- !u!114 &3500000000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3400000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3e86339c6814bef95b1841c72e92687, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  warehouseName: Marktstand
+  initialStock: []
+--- !u!114 &3500000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3400000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b6ccc82b037e404bb0cb155360a12aa2, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  warehouse: {fileID: 3500000000}
+  visible: 1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

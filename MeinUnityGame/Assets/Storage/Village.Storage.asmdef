@@ -1,0 +1,5 @@
+{
+  "name": "Village.Storage",
+  "rootNamespace": "Village.Storage",
+  "references": ["Unity.InputSystem"]
+}

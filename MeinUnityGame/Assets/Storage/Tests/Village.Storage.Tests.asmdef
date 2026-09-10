@@ -1,0 +1,6 @@
+{
+  "name": "Village.Storage.Tests",
+  "references": ["Village.Storage"],
+  "includePlatforms": ["Editor"],
+  "optionalUnityReferences": ["TestAssemblies"]
+}

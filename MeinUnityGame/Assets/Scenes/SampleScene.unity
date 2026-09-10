@@ -4578,6 +4578,7 @@ GameObject:
   - component: {fileID: 2700000002}
   - component: {fileID: 2700000001}
   - component: {fileID: 2700000005}
+  - component: {fileID: 3900000010}
   m_Layer: 0
   m_Name: Gunnar
   m_TagString: Untagged
@@ -4704,6 +4705,7 @@ MonoBehaviour:
   well: {fileID: 2220000091}
   homeLabel: Haus von Gunnar
   workplaceLabel: Taverne (Arbeitsplatz)
+  deliveryJob: {fileID: 3900000010}
   work:
     startHour: 10
     endHour: 23
@@ -14551,3 +14553,20 @@ SceneRoots:
   - {fileID: 3600000001}
   - {fileID: 3800000001}
   - {fileID: 3700000004}
+--- !u!114 &3900000010
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2700000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 897b1adb8ffa4f3a9154bf721f6805dc, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  tavernWarehouse: {fileID: 3500000010}
+  pickupPoint: {fileID: 2220000091}
+  deliveryPoint: {fileID: 2220000051}
+  minimumStock: 20
+  deliveryQuantity: 40

@@ -25,6 +25,12 @@ namespace Village.Npc
         bool TryDeliver(int quantity);
     }
 
+    /// <summary>Opt-in for a tavern water carrier; other delivery jobs keep their priorities.</summary>
+    public interface INpcWaterSupply
+    {
+        bool IsDrinkStockEmpty { get; }
+    }
+
     /// <summary>Optional input/capacity gate. Time without materials must not count as production work.</summary>
     public interface INpcProductionGate
     {

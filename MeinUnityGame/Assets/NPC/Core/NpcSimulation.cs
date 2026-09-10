@@ -238,6 +238,28 @@ namespace Village.Npc
             if (Satiation <= supplies.hungerThreshold + Epsilon) seekingFood = true;
             if (Energy <= sleepEnergy + Epsilon) seekingRest = true;
             if (State == NpcState.Sleeping && Energy >= wakeEnergy - Epsilon) seekingRest = false;
+            // Water carried to the tavern is unloaded even when the arrival was a need detour.
+            // This is opt-in: farm/smith deliveries retain their existing behavior.
+            var waterSupply = deliveryInventory as INpcWaterSupply;
+            if (waterSupply != null && CargoQuantity > 0 &&
+                NpcPoint.Distance(Position, navigation.GetPlace(NpcPlace.Delivery)) < Epsilon &&
+                deliveryInventory.TryDeliver(CargoQuantity))
+            {
+                DeliveredUnits += CargoQuantity;
+                CargoQuantity = 0;
+            }
+            if (waterSupply != null && seekingWater && waterSupply.IsDrinkStockEmpty)
+            {
+                // Drinking from an empty store cannot resolve thirst. Fetch its water first,
+                // while allowing food/rest to interrupt and never discarding a carried load.
+                if (seekingFood) SetGoal(NpcPlace.Tavern, NpcState.GoingToEat, NpcState.Eating);
+                else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
+                else if (CargoQuantity > 0)
+                    SetGoal(NpcPlace.Delivery, NpcState.GoingToDeliver, NpcState.Delivering);
+                else if (work.IsWorkTime(TotalMinutes)) CollectWater();
+                else SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Home);
+                return;
+            }
             if (seekingWater) SetGoal(NpcPlace.Tavern, NpcState.GoingToDrink, NpcState.Drinking);
             else if (seekingFood) SetGoal(NpcPlace.Tavern, NpcState.GoingToEat, NpcState.Eating);
             else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
@@ -255,6 +277,7 @@ namespace Village.Npc
             {
                 if (deliveryInventory != null && deliveryInventory.HasBatch(deliveryQuantity))
                 {
+                    if (waterSupply != null) { CollectWater(); return; }
                     SetGoal(NpcPlace.Pickup, NpcState.GoingToCollect, NpcState.Collecting);
                     if (State == NpcState.Collecting)
                     {
@@ -270,6 +293,27 @@ namespace Village.Npc
             }
             else if (IsCommuteTime()) SetGoal(NpcPlace.Work, NpcState.GoingToWork, NpcState.GoingToWork);
             else SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Home);
+        }
+
+        private void CollectWater()
+        {
+            // Start each new trip at the workplace; resume an uninterrupted outbound route.
+            if (Target != NpcPlace.Pickup &&
+                NpcPoint.Distance(Position, navigation.GetPlace(NpcPlace.Work)) >= Epsilon)
+            {
+                SetGoal(NpcPlace.Work, NpcState.GoingToWork, NpcState.Working);
+                return;
+            }
+            SetGoal(NpcPlace.Pickup, NpcState.GoingToCollect, NpcState.Collecting);
+            if (State == NpcState.Collecting)
+            {
+                if (deliveryInventory.TryPickUp(deliveryQuantity))
+                {
+                    CargoQuantity = deliveryQuantity;
+                    SetGoal(NpcPlace.Delivery, NpcState.GoingToDeliver, NpcState.Delivering);
+                }
+                else SetGoal(NpcPlace.Work, NpcState.GoingToWork, NpcState.Working);
+            }
         }
 
         private bool IsCommuteTime()

@@ -75,7 +75,9 @@ namespace Village.Storage
             StockRecord[] entries = target.GetSnapshot();
             if (entries.Length == 0) GUILayout.Label("Leer – keine Waren vorhanden.", textStyle);
             foreach (StockRecord entry in entries)
-                GUILayout.Label(entry.GoodsType + ": " + entry.Quantity, textStyle);
+                GUILayout.Label((entry.GoodsType == "Getränke" &&
+                    System.Array.IndexOf(warehousesWithDrinks, target) >= 0
+                    ? "Wasser (Getränke)" : entry.GoodsType) + ": " + entry.Quantity, textStyle);
             if (trackedGoods != null)
             {
                 foreach (string goodsType in trackedGoods)
@@ -88,7 +90,7 @@ namespace Village.Storage
             if (target.GetQuantity("Lebensmittel") == 0) GUILayout.Label("Lebensmittel: 0", textStyle);
             if (System.Array.IndexOf(warehousesWithDrinks, target) >= 0)
             {
-                if (target.GetQuantity("Getränke") == 0) GUILayout.Label("Getränke: 0", textStyle);
+                if (target.GetQuantity("Getränke") == 0) GUILayout.Label("Wasser (Getränke): 0", textStyle);
             }
             GUILayout.Space(8f);
         }

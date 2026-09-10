@@ -21,6 +21,7 @@ public sealed class NpcAgent : MonoBehaviour
     [SerializeField] private Transform well;
     [SerializeField] private string homeLabel = "Zuhause";
     [SerializeField] private string workplaceLabel = "Arbeitsplatz";
+    [SerializeField] private FarmDeliveryJob deliveryJob;
 
     [Header("Arbeit, Energie und Versorgung - vor Play einstellen")]
     [SerializeField] private WorkSchedule work = new WorkSchedule();
@@ -39,6 +40,8 @@ public sealed class NpcAgent : MonoBehaviour
     public string TargetName => simulation == null ? "Nicht bereit" :
         simulation.Target == NpcPlace.Tavern ? "Taverne" :
         simulation.Target == NpcPlace.Well ? "Brunnen" :
+        simulation.Target == NpcPlace.Delivery ? deliveryJob.DestinationName :
+        simulation.Target == NpcPlace.Pickup ? "Bauernhoflager" :
         simulation.Target == NpcPlace.Work ? workplaceLabel : homeLabel;
 
     private void OnEnable()
@@ -55,10 +58,14 @@ public sealed class NpcAgent : MonoBehaviour
             if (simulation == null)
             {
                 Physics.SyncTransforms();
-                var navigation = new SceneNavigation(roadRoot, home, workplace, tavern, well);
+                if (deliveryJob != null) deliveryJob.Validate();
+                var navigation = new SceneNavigation(roadRoot, home, workplace, tavern, well,
+                    deliveryJob != null ? deliveryJob.DeliveryPoint : null,
+                    deliveryJob != null ? deliveryJob.PickupPoint : null);
                 simulation = new NpcSimulation(navigation, work, fatigue, supplies,
                     () => tavernWarehouse != null && tavernWarehouse.TryRemove("Lebensmittel", 1),
-                    () => tavernWarehouse != null && tavernWarehouse.TryRemove("Getränke", 1));
+                    () => tavernWarehouse != null && tavernWarehouse.TryRemove("Getränke", 1),
+                    deliveryJob, deliveryJob != null ? deliveryJob.Settings : null);
             }
             // Initialization and re-enabling catch up from the same baseline; nothing is reset.
             Advance(clock.TotalGameMinutes);
@@ -106,14 +113,21 @@ public sealed class NpcAgent : MonoBehaviour
         private readonly Transform roads;
         private readonly NpcPoint[] places;
 
-        public SceneNavigation(Transform roads, Transform home, Transform work, Transform tavern, Transform well)
+        public SceneNavigation(Transform roads, Transform home, Transform work, Transform tavern, Transform well,
+            Transform deliveryPoint = null, Transform pickupPoint = null)
         {
             this.roads = roads;
             places = new[] { ToPoint(home.position), ToPoint(work.position),
-                ToPoint(tavern.position), ToPoint(well.position) };
+                ToPoint(tavern.position), ToPoint(well.position),
+                ToPoint(deliveryPoint != null ? deliveryPoint.position : work.position),
+                ToPoint(pickupPoint != null ? pickupPoint.position : work.position) };
             // Fail at initialization if any required place is disconnected.
             foreach (NpcPlace place in Enum.GetValues(typeof(NpcPlace)))
+            {
+                if (place == NpcPlace.Delivery && deliveryPoint == null) continue;
+                if (place == NpcPlace.Pickup && pickupPoint == null) continue;
                 FindRoute(places[0], place);
+            }
         }
 
         public NpcPoint GetPlace(NpcPlace place) => places[(int)place];

@@ -23,6 +23,14 @@ namespace Village.Npc
         private double serviceRemaining;
         private double commuteMinutes;
         private readonly Func<bool> consumeFood, consumeDrink;
+        private readonly INpcDeliveryInventory deliveryInventory;
+        private readonly double minutesPerUnit;
+        private readonly int deliveryQuantity;
+        private double productionRemaining;
+
+        public int CargoQuantity { get; private set; }
+        public double ProducedUnits { get; private set; }
+        public double DeliveredUnits { get; private set; }
 
         public double TotalMinutes { get; private set; }
         public double Energy { get; private set; }
@@ -49,7 +57,8 @@ namespace Village.Npc
 
         public NpcSimulation(INpcNavigation navigation, WorkSchedule schedule,
             FatigueSettings settings, SupplySettings supplySettings,
-            Func<bool> consumeFood = null, Func<bool> consumeDrink = null)
+            Func<bool> consumeFood = null, Func<bool> consumeDrink = null,
+            INpcDeliveryInventory deliveryInventory = null, WorkDeliverySettings deliverySettings = null)
         {
             if (navigation == null) throw new ArgumentNullException(nameof(navigation));
             schedule.Validate();
@@ -58,6 +67,16 @@ namespace Village.Npc
             this.navigation = navigation;
             this.consumeFood = consumeFood;
             this.consumeDrink = consumeDrink;
+            if ((deliveryInventory == null) != (deliverySettings == null))
+                throw new ArgumentException("Delivery inventory and settings must be supplied together.");
+            this.deliveryInventory = deliveryInventory;
+            if (deliverySettings != null)
+            {
+                deliverySettings.Validate();
+                minutesPerUnit = 60d / deliverySettings.unitsPerWorkHour;
+                productionRemaining = minutesPerUnit;
+                deliveryQuantity = deliverySettings.deliveryQuantity;
+            }
             work = new WorkSchedule { startHour = schedule.startHour, endHour = schedule.endHour,
                 commuteBeforeWork = schedule.commuteBeforeWork };
             supplies = new SupplySettings
@@ -102,7 +121,7 @@ namespace Village.Npc
                 ? Math.Min(RouteLength / metresPerGameMinute,
                     ((work.startHour - work.endHour + 24) % 24) * 60d) : 0d;
             // External stocks change even if this NPC's state repeats: never skip their consumption.
-            var midnights = consumeFood == null && consumeDrink == null && targetMinutes - TotalMinutes >= 2880d
+            var midnights = consumeFood == null && consumeDrink == null && deliveryInventory == null && targetMinutes - TotalMinutes >= 2880d
                 ? new Dictionary<string, Snapshot>() : null;
             while (targetMinutes - TotalMinutes > Epsilon)
             {
@@ -147,6 +166,9 @@ namespace Village.Npc
                 bool sleeping = State == NpcState.Sleeping;
                 bool travelling = route != null && nextPoint < route.Length;
                 bool eating = State == NpcState.Eating, drinking = State == NpcState.Drinking;
+                bool producing = deliveryInventory != null && State == NpcState.Working;
+                if (producing) step = Math.Min(step, productionRemaining);
+                if (State == NpcState.Delivering) step = Math.Min(step, 1d);
                 double energyIn = sleeping ? (wakeEnergy - Energy) / (energyRecovery / 60d)
                     : !seekingRest ? (Energy - sleepEnergy) / (energyLoss / 60d) : double.PositiveInfinity;
                 double foodIn = !seekingFood && supplies.satiationLossPerHour > 0d
@@ -163,6 +185,15 @@ namespace Village.Npc
                     throw new InvalidOperationException("NPC simulation could not advance.");
 
                 if (State == NpcState.Working) WorkedMinutes += step;
+                if (producing)
+                {
+                    productionRemaining -= step;
+                    if (productionRemaining <= Epsilon)
+                    {
+                        if (deliveryInventory.TryProduceOne()) ProducedUnits++;
+                        productionRemaining = minutesPerUnit;
+                    }
+                }
                 if (sleeping) SleptMinutes += step;
                 Energy = Clamp(Energy + step * (sleeping ? energyRecovery : -energyLoss) / 60d);
                 Satiation = Clamp(Satiation - step * supplies.satiationLossPerHour / 60d);
@@ -209,7 +240,33 @@ namespace Village.Npc
             if (seekingWater) SetGoal(NpcPlace.Tavern, NpcState.GoingToDrink, NpcState.Drinking);
             else if (seekingFood) SetGoal(NpcPlace.Tavern, NpcState.GoingToEat, NpcState.Eating);
             else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
-            else if (work.IsWorkTime(TotalMinutes)) SetGoal(NpcPlace.Work, NpcState.GoingToWork, NpcState.Working);
+            else if (CargoQuantity > 0)
+            {
+                SetGoal(NpcPlace.Delivery, NpcState.GoingToDeliver, NpcState.Delivering);
+                if (State == NpcState.Delivering && deliveryInventory.TryDeliver(CargoQuantity))
+                {
+                    DeliveredUnits += CargoQuantity;
+                    CargoQuantity = 0; // Only clear cargo after the full deposit succeeds.
+                    Decide(); // Re-evaluate the current shift, not the task from departure time.
+                }
+            }
+            else if (work.IsWorkTime(TotalMinutes))
+            {
+                if (deliveryInventory != null && deliveryInventory.HasBatch(deliveryQuantity))
+                {
+                    SetGoal(NpcPlace.Pickup, NpcState.GoingToCollect, NpcState.Collecting);
+                    if (State == NpcState.Collecting)
+                    {
+                        if (deliveryInventory.TryPickUp(deliveryQuantity))
+                        {
+                            CargoQuantity = deliveryQuantity; // Source withdrawal has already succeeded.
+                            SetGoal(NpcPlace.Delivery, NpcState.GoingToDeliver, NpcState.Delivering);
+                        }
+                        else SetGoal(NpcPlace.Work, NpcState.GoingToWork, NpcState.Working);
+                    }
+                }
+                else SetGoal(NpcPlace.Work, NpcState.GoingToWork, NpcState.Working);
+            }
             else if (IsCommuteTime()) SetGoal(NpcPlace.Work, NpcState.GoingToWork, NpcState.GoingToWork);
             else SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Home);
         }

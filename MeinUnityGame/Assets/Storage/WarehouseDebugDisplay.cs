@@ -8,6 +8,7 @@ namespace Village.Storage
     {
         [SerializeField] private BuildingWarehouse warehouse;
         [SerializeField] private BuildingWarehouse[] additionalWarehouses = new BuildingWarehouse[0];
+        [SerializeField] private BuildingWarehouse[] warehousesWithDrinks = new BuildingWarehouse[0];
         [SerializeField] private bool visible = true;
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -37,11 +38,11 @@ namespace Village.Storage
             Matrix4x4 previousMatrix = GUI.matrix;
             Color previousColor = GUI.color;
             int previousDepth = GUI.depth;
-            float scale = Mathf.Min(1f, Mathf.Min(Screen.width / 360f, Screen.height / 360f));
+            float scale = Mathf.Min(1f, Mathf.Min(Screen.width / 360f, Screen.height / 450f));
             if (scale <= 0f) return;
             GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, Vector3.one * scale);
             GUI.depth = -100;
-            var panel = new Rect(Screen.width / scale - 332f, 70f, 320f, 270f);
+            var panel = new Rect(Screen.width / scale - 332f, 70f, 320f, 360f);
             GUI.color = new Color(0.04f, 0.04f, 0.04f, 0.88f);
             GUI.DrawTexture(panel, Texture2D.whiteTexture);
             GUI.color = Color.white;
@@ -66,9 +67,9 @@ namespace Village.Storage
             foreach (StockRecord entry in entries)
                 GUILayout.Label(entry.GoodsType + ": " + entry.Quantity, textStyle);
             // These quantities remain visible at zero so exhaustion is easy to test.
-            if (target != warehouse)
+            if (target.GetQuantity("Lebensmittel") == 0) GUILayout.Label("Lebensmittel: 0", textStyle);
+            if (System.Array.IndexOf(warehousesWithDrinks, target) >= 0)
             {
-                if (target.GetQuantity("Lebensmittel") == 0) GUILayout.Label("Lebensmittel: 0", textStyle);
                 if (target.GetQuantity("Getränke") == 0) GUILayout.Label("Getränke: 0", textStyle);
             }
             GUILayout.Space(8f);

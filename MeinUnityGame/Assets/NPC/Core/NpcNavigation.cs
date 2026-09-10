@@ -2,7 +2,7 @@ using System;
 
 namespace Village.Npc
 {
-    public enum NpcPlace { Home, Work, Tavern, Well }
+    public enum NpcPlace { Home, Work, Tavern, Well, Delivery, Pickup }
 
     /// <summary>Unity-independent position used by the time simulation.</summary>
     public struct NpcPoint

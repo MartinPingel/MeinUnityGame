@@ -245,6 +245,8 @@ GameObject:
   - component: {fileID: 135158701}
   - component: {fileID: 135158700}
   - component: {fileID: 135158699}
+  - component: {fileID: 3500000020}
+  - component: {fileID: 3500000021}
   m_Layer: 0
   m_Name: Bauernhaus
   m_TagString: Untagged
@@ -4290,6 +4292,7 @@ MonoBehaviour:
   well: {fileID: 2220000091}
   homeLabel: Haus von Hans
   workplaceLabel: Feld
+  deliveryJob: {fileID: 3500000021}
   work:
     startHour: 8
     endHour: 17
@@ -11753,6 +11756,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   warehouse: {fileID: 3500000000}
   additionalWarehouses:
+  - {fileID: 3500000020}
+  - {fileID: 3500000010}
+  warehousesWithDrinks:
   - {fileID: 3500000010}
   visible: 1
 --- !u!114 &3500000010
@@ -11773,6 +11779,39 @@ MonoBehaviour:
     quantity: 100
   - goodsType: Getränke
     quantity: 100
+--- !u!114 &3500000020
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 135158698}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3e86339c6814bef95b1841c72e92687, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  warehouseName: Bauernhof von Hans
+  initialStock: []
+--- !u!114 &3500000021
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 135158698}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 107b9e4475bb4cbc988d9717e9b7cea4, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  sourceWarehouse: {fileID: 3500000020}
+  destinationWarehouse: {fileID: 3500000000}
+  deliveryPoint: {fileID: 3400001001}
+  pickupPoint: {fileID: 2220000071}
+  settings:
+    unitsPerWorkHour: 6
+    deliveryQuantity: 10
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

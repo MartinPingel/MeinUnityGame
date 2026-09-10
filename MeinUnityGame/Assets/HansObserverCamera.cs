@@ -80,7 +80,7 @@ public sealed class HansObserverCamera : MonoBehaviour
 
     private static int CompareHierarchy(NpcAgent a, NpcAgent b)
     {
-        int sceneOrder = a.gameObject.scene.handle.CompareTo(b.gameObject.scene.handle);
+        int sceneOrder = a.gameObject.scene.GetHashCode().CompareTo(b.gameObject.scene.GetHashCode());
         if (sceneOrder != 0) return sceneOrder;
         List<int> left = HierarchyPath(a.transform), right = HierarchyPath(b.transform);
         for (int i = 0; i < Mathf.Min(left.Count, right.Count); i++)

@@ -7,6 +7,7 @@ namespace Village.Storage
     public sealed class WarehouseDebugDisplay : MonoBehaviour
     {
         [SerializeField] private BuildingWarehouse warehouse;
+        [SerializeField] private BuildingWarehouse[] additionalWarehouses = new BuildingWarehouse[0];
         [SerializeField] private bool visible = true;
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -45,18 +46,32 @@ namespace Village.Storage
             GUI.DrawTexture(panel, Texture2D.whiteTexture);
             GUI.color = Color.white;
             GUILayout.BeginArea(new Rect(panel.x + 12f, panel.y + 10f, panel.width - 24f, panel.height - 20f));
-            GUILayout.Label("Warenlager – " + warehouse.WarehouseName, textStyle);
+            GUILayout.Label("Gebäude-Warenlager", textStyle);
             GUILayout.Label("F5: Anzeige ein/aus", textStyle);
             scroll = GUILayout.BeginScrollView(scroll);
-            StockRecord[] entries = warehouse.GetSnapshot();
-            if (entries.Length == 0) GUILayout.Label("Leer – keine Waren vorhanden.", textStyle);
-            foreach (StockRecord entry in entries)
-                GUILayout.Label(entry.GoodsType + ": " + entry.Quantity, textStyle);
+            DrawWarehouse(warehouse);
+            foreach (BuildingWarehouse additional in additionalWarehouses)
+                if (additional != null && additional != warehouse) DrawWarehouse(additional);
             GUILayout.EndScrollView();
             GUILayout.EndArea();
             GUI.color = previousColor;
             GUI.matrix = previousMatrix;
             GUI.depth = previousDepth;
+        }
+        private void DrawWarehouse(BuildingWarehouse target)
+        {
+            GUILayout.Label(target.WarehouseName, textStyle);
+            StockRecord[] entries = target.GetSnapshot();
+            if (entries.Length == 0) GUILayout.Label("Leer – keine Waren vorhanden.", textStyle);
+            foreach (StockRecord entry in entries)
+                GUILayout.Label(entry.GoodsType + ": " + entry.Quantity, textStyle);
+            // These quantities remain visible at zero so exhaustion is easy to test.
+            if (target != warehouse)
+            {
+                if (target.GetQuantity("Lebensmittel") == 0) GUILayout.Label("Lebensmittel: 0", textStyle);
+                if (target.GetQuantity("Getränke") == 0) GUILayout.Label("Getränke: 0", textStyle);
+            }
+            GUILayout.Space(8f);
         }
 #endif
     }

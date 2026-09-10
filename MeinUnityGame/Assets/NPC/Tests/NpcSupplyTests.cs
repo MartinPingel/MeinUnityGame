@@ -22,10 +22,11 @@ public sealed class NpcSupplyTests
     }
 
     private static NpcSimulation Create(SupplySettings supplies = null, FatigueSettings fatigue = null,
-        INpcNavigation roads = null, WorkSchedule schedule = null)
+        INpcNavigation roads = null, WorkSchedule schedule = null,
+        Func<bool> consumeFood = null, Func<bool> consumeDrink = null)
     {
         return new NpcSimulation(roads ?? new TestRoad(), schedule ?? new WorkSchedule(),
-            fatigue ?? new FatigueSettings(), supplies ?? new SupplySettings());
+            fatigue ?? new FatigueSettings(), supplies ?? new SupplySettings(), consumeFood, consumeDrink);
     }
 
     [Test]
@@ -141,6 +142,89 @@ public sealed class NpcSupplyTests
         Assert.That(npc.DrinksCompleted, Is.EqualTo(1d));
         Assert.That(npc.Target, Is.EqualTo(NpcPlace.Home));
         Assert.That(npc.IsWorkTime, Is.False);
+    }
+
+
+    [Test]
+    public void CompletedServicesConsumeOneUnitAndInterruptedServicesConsumeNone()
+    {
+        int food = 1, drinks = 1;
+        var npc = Create(new SupplySettings { initialSatiation = 20d, initialHydration = 20d },
+            consumeFood: () => food > 0 && --food >= 0,
+            consumeDrink: () => drinks > 0 && --drinks >= 0);
+        npc.AdvanceTo(19d, 7.5d);
+        Assert.That(food, Is.EqualTo(1));
+        Assert.That(drinks, Is.EqualTo(1));
+        npc.AdvanceTo(20d, 7.5d);
+        Assert.That(drinks, Is.Zero);
+        Assert.That(npc.Hydration, Is.EqualTo(100d));
+        npc.AdvanceTo(50d, 7.5d);
+        Assert.That(food, Is.Zero);
+        Assert.That(npc.Satiation, Is.EqualTo(100d));
+
+        int meals = 0;
+        var interrupted = Create(new SupplySettings { initialSatiation = 20d,
+            initialHydration = 21d, hydrationLossPerHour = 60d },
+            roads: new TestRoad(tavern: 0d),
+            consumeFood: () => { meals++; return true; }, consumeDrink: () => false);
+        interrupted.AdvanceTo(2d, 7.5d);
+        Assert.That(meals, Is.Zero);
+    }
+
+    [TestCase(true)]
+    [TestCase(false)]
+    public void EmptyStockNeverRefillsTheCorrespondingNeed(bool food)
+    {
+        var npc = Create(new SupplySettings {
+            initialSatiation = food ? 20d : 100d,
+            initialHydration = food ? 100d : 20d,
+            satiationLossPerHour = 0d, hydrationLossPerHour = 0d },
+            consumeFood: () => false, consumeDrink: () => false);
+        npc.AdvanceTo(180d, 7.5d);
+        Assert.That(food ? npc.Satiation : npc.Hydration, Is.EqualTo(20d));
+        Assert.That(npc.MealsCompleted, Is.Zero);
+        Assert.That(npc.DrinksCompleted, Is.Zero);
+    }
+
+    [Test]
+    public void TwoNpcsCannotConsumeTheSameLastUnit()
+    {
+        int available = 1;
+        Func<bool> consume = () => available > 0 && --available >= 0;
+        var supplies = new SupplySettings { initialSatiation = 20d,
+            satiationLossPerHour = 0d, hydrationLossPerHour = 0d };
+        var first = Create(supplies, roads: new TestRoad(tavern: 0d),
+            consumeFood: consume, consumeDrink: () => false);
+        var second = Create(supplies, roads: new TestRoad(tavern: 0d),
+            consumeFood: consume, consumeDrink: () => false);
+        first.AdvanceTo(30d, 7.5d);
+        second.AdvanceTo(30d, 7.5d);
+        Assert.That(available, Is.Zero);
+        Assert.That(first.Satiation, Is.EqualTo(100d));
+        Assert.That(second.Satiation, Is.EqualTo(20d));
+        Assert.That(first.MealsCompleted + second.MealsCompleted, Is.EqualTo(1d));
+    }
+
+    [Test]
+    public void LongWaitWithFiniteStockMatchesSmallTicksWithoutSkippingWithdrawals()
+    {
+        int jumpFood = 3, jumpDrinks = 4, tickFood = 3, tickDrinks = 4;
+        var jumped = Create(consumeFood: () => jumpFood > 0 && --jumpFood >= 0,
+            consumeDrink: () => jumpDrinks > 0 && --jumpDrinks >= 0);
+        var ticking = Create(consumeFood: () => tickFood > 0 && --tickFood >= 0,
+            consumeDrink: () => tickDrinks > 0 && --tickDrinks >= 0);
+        const double end = 8d * 1440d;
+        jumped.AdvanceTo(end, 7.5d);
+        for (double t = 0.37d; t < end; t += 0.37d) ticking.AdvanceTo(t, 7.5d);
+        ticking.AdvanceTo(end, 7.5d);
+        Assert.That(jumpFood, Is.EqualTo(tickFood));
+        Assert.That(jumpDrinks, Is.EqualTo(tickDrinks).And.EqualTo(0));
+        Assert.That(jumped.MealsCompleted, Is.EqualTo(ticking.MealsCompleted));
+        Assert.That(jumped.DrinksCompleted, Is.EqualTo(ticking.DrinksCompleted));
+        Assert.That(jumped.Satiation, Is.EqualTo(ticking.Satiation).Within(1e-5));
+        Assert.That(jumped.Hydration, Is.EqualTo(ticking.Hydration).Within(1e-5));
+        Assert.That(jumped.Energy, Is.EqualTo(ticking.Energy).Within(1e-5));
+        Assert.That(jumped.State, Is.EqualTo(ticking.State));
     }
 
     [Test]

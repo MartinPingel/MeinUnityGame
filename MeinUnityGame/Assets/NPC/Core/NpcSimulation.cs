@@ -22,6 +22,7 @@ namespace Village.Npc
         private int nextPoint;
         private double serviceRemaining;
         private double commuteMinutes;
+        private readonly Func<bool> consumeFood, consumeDrink;
 
         public double TotalMinutes { get; private set; }
         public double Energy { get; private set; }
@@ -47,13 +48,16 @@ namespace Village.Npc
                 new SupplySettings { satiationLossPerHour = 0d, hydrationLossPerHour = 0d }) { }
 
         public NpcSimulation(INpcNavigation navigation, WorkSchedule schedule,
-            FatigueSettings settings, SupplySettings supplySettings)
+            FatigueSettings settings, SupplySettings supplySettings,
+            Func<bool> consumeFood = null, Func<bool> consumeDrink = null)
         {
             if (navigation == null) throw new ArgumentNullException(nameof(navigation));
             schedule.Validate();
             settings.Validate();
             supplySettings.Validate();
             this.navigation = navigation;
+            this.consumeFood = consumeFood;
+            this.consumeDrink = consumeDrink;
             work = new WorkSchedule { startHour = schedule.startHour, endHour = schedule.endHour,
                 commuteBeforeWork = schedule.commuteBeforeWork };
             supplies = new SupplySettings
@@ -97,7 +101,8 @@ namespace Village.Npc
             commuteMinutes = work.commuteBeforeWork
                 ? Math.Min(RouteLength / metresPerGameMinute,
                     ((work.startHour - work.endHour + 24) % 24) * 60d) : 0d;
-            var midnights = targetMinutes - TotalMinutes >= 2880d
+            // External stocks change even if this NPC's state repeats: never skip their consumption.
+            var midnights = consumeFood == null && consumeDrink == null && targetMinutes - TotalMinutes >= 2880d
                 ? new Dictionary<string, Snapshot>() : null;
             while (targetMinutes - TotalMinutes > Epsilon)
             {
@@ -180,8 +185,11 @@ namespace Village.Npc
                     serviceRemaining -= step;
                     if (serviceRemaining <= Epsilon)
                     {
-                        if (eating) { Satiation = 100d; seekingFood = false; MealsCompleted++; }
-                        if (drinking) { Hydration = 100d; seekingWater = false; DrinksCompleted++; }
+                        if (eating && (consumeFood == null || consumeFood()))
+                        { Satiation = 100d; seekingFood = false; MealsCompleted++; }
+                        if (drinking && (consumeDrink == null || consumeDrink()))
+                        { Hydration = 100d; seekingWater = false; DrinksCompleted++; }
+                        // Empty stock grants nothing; the need stays active and service can retry.
                         serviceRemaining = 0d;
                         State = NpcState.Home; // Neutral until Decide re-evaluates current priorities.
                     }

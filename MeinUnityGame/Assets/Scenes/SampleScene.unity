@@ -581,6 +581,7 @@ GameObject:
   - component: {fileID: 317736252}
   - component: {fileID: 317736251}
   - component: {fileID: 317736250}
+  - component: {fileID: 3500000010}
   m_Layer: 0
   m_Name: Tarverne
   m_TagString: Untagged
@@ -4285,6 +4286,7 @@ MonoBehaviour:
   home: {fileID: 2220000031}
   workplace: {fileID: 2220000081}
   tavern: {fileID: 2220000051}
+  tavernWarehouse: {fileID: 3500000010}
   well: {fileID: 2220000091}
   homeLabel: Haus von Hans
   workplaceLabel: Feld
@@ -4693,6 +4695,7 @@ MonoBehaviour:
   home: {fileID: 2220000021}
   workplace: {fileID: 2220000051}
   tavern: {fileID: 2220000051}
+  tavernWarehouse: {fileID: 3500000010}
   well: {fileID: 2220000091}
   homeLabel: Haus von Gunnar
   workplaceLabel: Taverne (Arbeitsplatz)
@@ -10408,6 +10411,7 @@ MonoBehaviour:
   home: {fileID: 2220000001}
   workplace: {fileID: 3000001001}
   tavern: {fileID: 2220000051}
+  tavernWarehouse: {fileID: 3500000010}
   well: {fileID: 2220000091}
   homeLabel: Haus von Peter
   workplaceLabel: Schmiede
@@ -10567,6 +10571,7 @@ MonoBehaviour:
   home: {fileID: 2220000041}
   workplace: {fileID: 2900001001}
   tavern: {fileID: 2220000051}
+  tavernWarehouse: {fileID: 3500000010}
   well: {fileID: 2220000091}
   homeLabel: Haus von Justus
   workplaceLabel: Mine
@@ -11695,6 +11700,7 @@ MonoBehaviour:
   home: {fileID: 2220000011}
   workplace: {fileID: 3400001001}
   tavern: {fileID: 2220000051}
+  tavernWarehouse: {fileID: 3500000010}
   well: {fileID: 2220000091}
   homeLabel: Haus von Marcel
   workplaceLabel: Marktstand
@@ -11746,7 +11752,27 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   warehouse: {fileID: 3500000000}
+  additionalWarehouses:
+  - {fileID: 3500000010}
   visible: 1
+--- !u!114 &3500000010
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 317736249}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3e86339c6814bef95b1841c72e92687, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  warehouseName: Taverne
+  initialStock:
+  - goodsType: Lebensmittel
+    quantity: 100
+  - goodsType: Getränke
+    quantity: 100
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

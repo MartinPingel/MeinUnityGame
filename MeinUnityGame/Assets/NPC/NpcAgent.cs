@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using Village.Npc;
+using Village.Storage;
 
 /// <summary>Reusable scene adapter: identity, locations, road travel and a work/rest simulation.</summary>
 [DisallowMultipleComponent]
@@ -16,6 +17,7 @@ public sealed class NpcAgent : MonoBehaviour
     [SerializeField] private Transform home;
     [SerializeField] private Transform workplace;
     [SerializeField] private Transform tavern;
+    [SerializeField] private BuildingWarehouse tavernWarehouse;
     [SerializeField] private Transform well;
     [SerializeField] private string homeLabel = "Zuhause";
     [SerializeField] private string workplaceLabel = "Arbeitsplatz";
@@ -44,8 +46,8 @@ public sealed class NpcAgent : MonoBehaviour
         try
         {
             if (clock == null || home == null || workplace == null || roadRoot == null ||
-                tavern == null || well == null)
-                throw new InvalidOperationException("NPC needs clock, roads, home, workplace, tavern and well references.");
+                tavern == null || well == null || tavernWarehouse == null)
+                throw new InvalidOperationException("NPC needs clock, roads, home, workplace, tavern, tavern warehouse and well references.");
             if (walkingMetresPerSecond <= 0f || float.IsNaN(walkingMetresPerSecond) ||
                 float.IsInfinity(walkingMetresPerSecond))
                 throw new InvalidOperationException("NPC walking speed must be finite and positive.");
@@ -54,7 +56,9 @@ public sealed class NpcAgent : MonoBehaviour
             {
                 Physics.SyncTransforms();
                 var navigation = new SceneNavigation(roadRoot, home, workplace, tavern, well);
-                simulation = new NpcSimulation(navigation, work, fatigue, supplies);
+                simulation = new NpcSimulation(navigation, work, fatigue, supplies,
+                    () => tavernWarehouse != null && tavernWarehouse.TryRemove("Lebensmittel", 1),
+                    () => tavernWarehouse != null && tavernWarehouse.TryRemove("Getränke", 1));
             }
             // Initialization and re-enabling catch up from the same baseline; nothing is reset.
             Advance(clock.TotalGameMinutes);

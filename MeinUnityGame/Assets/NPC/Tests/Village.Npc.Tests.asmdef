@@ -1,7 +1,8 @@
 {
   "name": "Village.Npc.Tests",
   "references": [
-    "Village.Npc.Core"
+    "Village.Npc.Core",
+    "Village.Storage"
   ],
   "includePlatforms": [
     "Editor"

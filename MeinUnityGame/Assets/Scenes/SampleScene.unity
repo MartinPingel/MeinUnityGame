@@ -10248,6 +10248,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3000000001}
+  - component: {fileID: 3500000030}
+  - component: {fileID: 3500000031}
   m_Layer: 0
   m_Name: Schmiede
   m_TagString: Untagged
@@ -10420,6 +10422,7 @@ MonoBehaviour:
   well: {fileID: 2220000091}
   homeLabel: Haus von Peter
   workplaceLabel: Schmiede
+  deliveryJob: {fileID: 3500000031}
   work:
     startHour: 8
     endHour: 18
@@ -11762,6 +11765,14 @@ MonoBehaviour:
   - {fileID: 3500000010}
   warehousesWithDrinks:
   - {fileID: 3500000010}
+  trackedWarehouses:
+  - warehouse: {fileID: 3600000020}
+    goodsTypes:
+    - Eisen
+  - warehouse: {fileID: 3500000030}
+    goodsTypes:
+    - Eisen
+    - Werkzeuge
   visible: 1
 --- !u!114 &3500000010
 MonoBehaviour:
@@ -13794,7 +13805,9 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   warehouseName: Schmelze
-  initialStock: []
+  initialStock:
+  - goodsType: Eisen
+    quantity: 20
 --- !u!1 &3800000100
 GameObject:
   m_ObjectHideFlags: 0
@@ -14469,6 +14482,40 @@ MonoBehaviour:
     drinkingMinutes: 10
   walkingMetresPerSecond: 1.5
   bodyHeightOffset: 1
+--- !u!114 &3500000030
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3000000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3e86339c6814bef95b1841c72e92687, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  warehouseName: Schmiede
+  initialStock: []
+--- !u!114 &3500000031
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3000000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac48e5d571f14d798c5927f08b32e038, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  sourceWarehouse: {fileID: 3600000020}
+  smithWarehouse: {fileID: 3500000030}
+  pickupPoint: {fileID: 3600001001}
+  deliveryPoint: {fileID: 3000001001}
+  deliveryQuantity: 10
+  ironPerCycle: 2
+  toolsPerCycle: 1
+  workMinutesPerCycle: 30
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

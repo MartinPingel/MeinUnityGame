@@ -5,7 +5,7 @@ using Village.Storage;
 
 /// <summary>Building-owned production/delivery configuration, enabled only for its assigned worker.</summary>
 [DisallowMultipleComponent]
-public sealed class FarmDeliveryJob : MonoBehaviour, INpcDeliveryInventory
+public sealed class FarmDeliveryJob : WorkDeliveryJob
 {
     [SerializeField] private BuildingWarehouse sourceWarehouse;
     [SerializeField] private BuildingWarehouse destinationWarehouse;
@@ -13,12 +13,14 @@ public sealed class FarmDeliveryJob : MonoBehaviour, INpcDeliveryInventory
     [SerializeField] private Transform pickupPoint;
     [SerializeField] private WorkDeliverySettings settings = new WorkDeliverySettings();
 
-    public Transform DeliveryPoint => deliveryPoint;
-    public Transform PickupPoint => pickupPoint;
-    public string DestinationName => destinationWarehouse != null ? destinationWarehouse.WarehouseName : "Lieferziel";
-    public WorkDeliverySettings Settings => settings;
+    public override Transform DeliveryPoint => deliveryPoint;
+    public override Transform PickupPoint => pickupPoint;
+    public override string DestinationName => destinationWarehouse != null ? destinationWarehouse.WarehouseName : "Lieferziel";
+    public override string CargoName => "Lebensmittel";
+    public override string PickupName => "Bauernhoflager";
+    public override WorkDeliverySettings Settings => settings;
 
-    public void Validate()
+    public override void Validate()
     {
         if (sourceWarehouse == null || destinationWarehouse == null || deliveryPoint == null || pickupPoint == null ||
             sourceWarehouse == destinationWarehouse)
@@ -26,11 +28,11 @@ public sealed class FarmDeliveryJob : MonoBehaviour, INpcDeliveryInventory
         settings.Validate();
     }
 
-    public bool TryProduceOne() => TryAdd(sourceWarehouse, 1);
-    public bool HasBatch(int quantity) => sourceWarehouse != null && sourceWarehouse.Has("Lebensmittel", quantity);
-    public bool TryPickUp(int quantity) => sourceWarehouse != null &&
+    public override bool TryProduceOne() => TryAdd(sourceWarehouse, 1);
+    public override bool HasBatch(int quantity) => sourceWarehouse != null && sourceWarehouse.Has("Lebensmittel", quantity);
+    public override bool TryPickUp(int quantity) => sourceWarehouse != null &&
         sourceWarehouse.TryRemove("Lebensmittel", quantity);
-    public bool TryDeliver(int quantity) => TryAdd(destinationWarehouse, quantity);
+    public override bool TryDeliver(int quantity) => TryAdd(destinationWarehouse, quantity);
 
     private static bool TryAdd(BuildingWarehouse warehouse, int quantity)
     {

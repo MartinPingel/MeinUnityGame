@@ -19,6 +19,10 @@ namespace Village.Storage
         public void Add(string goodsType, int quantity) => Stock.Add(goodsType, quantity);
         public bool TryRemove(string goodsType, int quantity) => Stock.TryRemove(goodsType, quantity);
         public StockRecord[] GetSnapshot() => Stock.GetSnapshot();
+        public bool CanConvert(string inputType, int inputQuantity, string outputType, int outputQuantity) =>
+            Stock.CanConvert(inputType, inputQuantity, outputType, outputQuantity);
+        public bool TryConvert(string inputType, int inputQuantity, string outputType, int outputQuantity) =>
+            Stock.TryConvert(inputType, inputQuantity, outputType, outputQuantity);
 
         private WarehouseStock Stock
         {

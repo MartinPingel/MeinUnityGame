@@ -21,7 +21,7 @@ public sealed class NpcAgent : MonoBehaviour
     [SerializeField] private Transform well;
     [SerializeField] private string homeLabel = "Zuhause";
     [SerializeField] private string workplaceLabel = "Arbeitsplatz";
-    [SerializeField] private FarmDeliveryJob deliveryJob;
+    [SerializeField] private WorkDeliveryJob deliveryJob;
 
     [Header("Arbeit, Energie und Versorgung - vor Play einstellen")]
     [SerializeField] private WorkSchedule work = new WorkSchedule();
@@ -36,12 +36,13 @@ public sealed class NpcAgent : MonoBehaviour
     public string Profession => profession;
     public GameClock Clock => clock;
     public NpcSimulation Simulation => simulation;
+    public string CargoName => deliveryJob != null ? deliveryJob.CargoName : "Ware";
     public string WorkHours => $"{work.startHour:00}:00–{work.endHour:00}:00";
     public string TargetName => simulation == null ? "Nicht bereit" :
         simulation.Target == NpcPlace.Tavern ? "Taverne" :
         simulation.Target == NpcPlace.Well ? "Brunnen" :
         simulation.Target == NpcPlace.Delivery ? deliveryJob.DestinationName :
-        simulation.Target == NpcPlace.Pickup ? "Bauernhoflager" :
+        simulation.Target == NpcPlace.Pickup ? deliveryJob.PickupName :
         simulation.Target == NpcPlace.Work ? workplaceLabel : homeLabel;
 
     private void OnEnable()

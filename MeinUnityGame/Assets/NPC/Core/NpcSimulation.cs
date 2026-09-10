@@ -166,7 +166,8 @@ namespace Village.Npc
                 bool sleeping = State == NpcState.Sleeping;
                 bool travelling = route != null && nextPoint < route.Length;
                 bool eating = State == NpcState.Eating, drinking = State == NpcState.Drinking;
-                bool producing = deliveryInventory != null && State == NpcState.Working;
+                bool producing = deliveryInventory != null && State == NpcState.Working &&
+                    (!(deliveryInventory is INpcProductionGate gate) || gate.CanProduce);
                 if (producing) step = Math.Min(step, productionRemaining);
                 if (State == NpcState.Delivering) step = Math.Min(step, 1d);
                 double energyIn = sleeping ? (wakeEnergy - Energy) / (energyRecovery / 60d)

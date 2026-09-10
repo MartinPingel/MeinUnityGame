@@ -43,6 +43,28 @@ namespace Village.Storage
             return true;
         }
 
+        public bool CanConvert(string inputType, int inputQuantity, string outputType, int outputQuantity)
+        {
+            ValidateQuantity(inputQuantity);
+            ValidateQuantity(outputQuantity);
+            int input = GetQuantity(inputType), output = GetQuantity(outputType);
+            if (inputType == outputType) throw new ArgumentException("Recipe input and output must differ.");
+            return input >= inputQuantity && output <= int.MaxValue - outputQuantity;
+        }
+
+        /// <summary>Consume inputs and add outputs together, or leave the entire stock unchanged.</summary>
+        public bool TryConvert(string inputType, int inputQuantity, string outputType, int outputQuantity)
+        {
+            if (!CanConvert(inputType, inputQuantity, outputType, outputQuantity)) return false;
+            int remaining = quantities[inputType] - inputQuantity;
+            int produced = GetQuantity(outputType) + outputQuantity; // Capacity checked before either write.
+            if (remaining == 0) quantities.Remove(inputType);
+            else quantities[inputType] = remaining;
+            quantities[outputType] = produced;
+            Changed?.Invoke(); // Observers only see the completed transaction.
+            return true;
+        }
+
         /// <summary>A detached, alphabetically sorted snapshot; callers cannot change this store.</summary>
         public StockRecord[] GetSnapshot()
         {

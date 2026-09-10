@@ -24,4 +24,10 @@ namespace Village.Npc
         bool TryPickUp(int quantity);
         bool TryDeliver(int quantity);
     }
+
+    /// <summary>Optional input/capacity gate. Time without materials must not count as production work.</summary>
+    public interface INpcProductionGate
+    {
+        bool CanProduce { get; }
+    }
 }

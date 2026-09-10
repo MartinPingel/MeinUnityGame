@@ -9,6 +9,13 @@ namespace Village.Storage
         [SerializeField] private BuildingWarehouse warehouse;
         [SerializeField] private BuildingWarehouse[] additionalWarehouses = new BuildingWarehouse[0];
         [SerializeField] private BuildingWarehouse[] warehousesWithDrinks = new BuildingWarehouse[0];
+        [System.Serializable]
+        private sealed class StockWatch
+        {
+            public BuildingWarehouse warehouse;
+            public string[] goodsTypes;
+        }
+        [SerializeField] private StockWatch[] trackedWarehouses = new StockWatch[0];
         [SerializeField] private bool visible = true;
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -50,6 +57,9 @@ namespace Village.Storage
             GUILayout.Label("Gebäude-Warenlager", textStyle);
             GUILayout.Label("F5: Anzeige ein/aus", textStyle);
             scroll = GUILayout.BeginScrollView(scroll);
+            foreach (StockWatch watch in trackedWarehouses)
+                if (watch != null && watch.warehouse != null)
+                    DrawWarehouse(watch.warehouse, watch.goodsTypes);
             DrawWarehouse(warehouse);
             foreach (BuildingWarehouse additional in additionalWarehouses)
                 if (additional != null && additional != warehouse) DrawWarehouse(additional);
@@ -59,13 +69,21 @@ namespace Village.Storage
             GUI.matrix = previousMatrix;
             GUI.depth = previousDepth;
         }
-        private void DrawWarehouse(BuildingWarehouse target)
+        private void DrawWarehouse(BuildingWarehouse target, string[] trackedGoods = null)
         {
             GUILayout.Label(target.WarehouseName, textStyle);
             StockRecord[] entries = target.GetSnapshot();
             if (entries.Length == 0) GUILayout.Label("Leer – keine Waren vorhanden.", textStyle);
             foreach (StockRecord entry in entries)
                 GUILayout.Label(entry.GoodsType + ": " + entry.Quantity, textStyle);
+            if (trackedGoods != null)
+            {
+                foreach (string goodsType in trackedGoods)
+                    if (!string.IsNullOrWhiteSpace(goodsType) && target.GetQuantity(goodsType) == 0)
+                        GUILayout.Label(goodsType + ": 0", textStyle);
+                GUILayout.Space(8f);
+                return;
+            }
             // These quantities remain visible at zero so exhaustion is easy to test.
             if (target.GetQuantity("Lebensmittel") == 0) GUILayout.Label("Lebensmittel: 0", textStyle);
             if (System.Array.IndexOf(warehousesWithDrinks, target) >= 0)

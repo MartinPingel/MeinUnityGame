@@ -73,12 +73,12 @@ public sealed class NpcDebugDisplay : MonoBehaviour
             text += "NPC-Simulation noch nicht bereit – Console prüfen.";
         else
         {
-            text += $"Zustand: {StateName(model.State)}\nZiel: {agent.TargetName}\n";
+            text += $"Zustand: {StateName(model.State, agent)}\nZiel: {agent.TargetName}\n";
             text += $"Sättigung: {model.Satiation.ToString("0.0", GermanNumbers)} / 100\n";
             text += $"Flüssigkeit: {model.Hydration.ToString("0.0", GermanNumbers)} / 100\n";
             text += $"Energie: {model.Energy.ToString("0.0", GermanNumbers)} / 100\n";
             text += $"Arbeitszeit: {agent.WorkHours}\n";
-            if (model.CargoQuantity > 0) text += $"Lieferung: {model.CargoQuantity} Lebensmittel\n";
+            if (model.CargoQuantity > 0) text += $"Lieferung: {model.CargoQuantity} {agent.CargoName}\n";
             text += $"Arbeitsstatus: {(model.State == NpcState.Working ? "Arbeitet" : model.IsWorkTime ? "Arbeitszeit, derzeit abwesend" : "Feierabend")}\n";
             text += $"Ruhebedarf: {(model.NeedsRest ? "Ja" : "Nein")}\n";
             text += $"Gearbeitet: {model.WorkedMinutes / 60d:0.00} h gesamt\n";
@@ -127,7 +127,7 @@ public sealed class NpcDebugDisplay : MonoBehaviour
         panel.anchoredPosition3D = new Vector3(margin, -margin, 0f);
     }
 
-    private static string StateName(NpcState state)
+    private static string StateName(NpcState state, NpcAgent agent)
     {
         switch (state)
         {
@@ -140,9 +140,9 @@ public sealed class NpcDebugDisplay : MonoBehaviour
             case NpcState.Eating: return "Isst";
             case NpcState.GoingToDrink: return "Geht zum Brunnen";
             case NpcState.Drinking: return "Trinkt";
-            case NpcState.GoingToDeliver: return "Liefert Lebensmittel";
+            case NpcState.GoingToDeliver: return "Liefert " + agent.CargoName;
             case NpcState.Delivering: return "Wartet auf Einlagerung";
-            case NpcState.GoingToCollect: return "Holt Lebensmittel am Bauernhof ab";
+            case NpcState.GoingToCollect: return "Holt " + agent.CargoName + " bei " + agent.TargetName + " ab";
             case NpcState.Collecting: return "Nimmt Lieferung auf";
             default: return state.ToString();
         }

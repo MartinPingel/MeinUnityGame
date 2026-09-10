@@ -108,13 +108,14 @@ public sealed class NpcInnkeeperTests
     {
         var npc = Create();
         npc.AdvanceTo(1200d, 7.5d);
-        Assert.That(npc.State, Is.EqualTo(NpcState.GoingToDrink));
-        Assert.That(npc.Target, Is.EqualTo(NpcPlace.Well));
-        npc.AdvanceTo(1233d, 7.5d);
+        Assert.That(npc.State, Is.EqualTo(NpcState.Drinking));
+        Assert.That(npc.Target, Is.EqualTo(NpcPlace.Tavern));
+        npc.AdvanceTo(1210d, 7.5d);
         Assert.That(npc.State, Is.EqualTo(NpcState.Working));
         Assert.That(npc.Target, Is.EqualTo(NpcPlace.Work));
         Assert.That(npc.DrinksCompleted, Is.EqualTo(1d));
         Assert.That(npc.Position.X, Is.Zero);
+        Assert.That(npc.TravelledMetres, Is.Zero);
     }
 
     [Test]

@@ -198,7 +198,7 @@ namespace Village.Npc
             if (Satiation <= supplies.hungerThreshold + Epsilon) seekingFood = true;
             if (Energy <= sleepEnergy + Epsilon) seekingRest = true;
             if (State == NpcState.Sleeping && Energy >= wakeEnergy - Epsilon) seekingRest = false;
-            if (seekingWater) SetGoal(NpcPlace.Well, NpcState.GoingToDrink, NpcState.Drinking);
+            if (seekingWater) SetGoal(NpcPlace.Tavern, NpcState.GoingToDrink, NpcState.Drinking);
             else if (seekingFood) SetGoal(NpcPlace.Tavern, NpcState.GoingToEat, NpcState.Eating);
             else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
             else if (work.IsWorkTime(TotalMinutes)) SetGoal(NpcPlace.Work, NpcState.GoingToWork, NpcState.Working);

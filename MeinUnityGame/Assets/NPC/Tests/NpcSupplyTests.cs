@@ -15,13 +15,16 @@ public sealed class NpcSupplyTests
                 place == NpcPlace.Tavern ? tavern : place == NpcPlace.Well ? well : 0d, 0d, 0d);
         }
         public NpcPoint[] FindRoute(NpcPoint from, NpcPlace to)
-        { return new[] { from, GetPlace(to) }; }
+        {
+            Assert.That(to, Is.Not.EqualTo(NpcPlace.Well), "Needs must never route to the well.");
+            return new[] { from, GetPlace(to) };
+        }
     }
 
     private static NpcSimulation Create(SupplySettings supplies = null, FatigueSettings fatigue = null,
-        INpcNavigation roads = null)
+        INpcNavigation roads = null, WorkSchedule schedule = null)
     {
-        return new NpcSimulation(roads ?? new TestRoad(), new WorkSchedule(),
+        return new NpcSimulation(roads ?? new TestRoad(), schedule ?? new WorkSchedule(),
             fatigue ?? new FatigueSettings(), supplies ?? new SupplySettings());
     }
 
@@ -48,15 +51,15 @@ public sealed class NpcSupplyTests
         var npc = Create(new SupplySettings { initialSatiation = 20d, initialHydration = 20d },
             new FatigueSettings { initialFatigue = 80d });
         Assert.That(npc.State, Is.EqualTo(NpcState.GoingToDrink));
-        npc.AdvanceTo(4d, 7.5d);
+        Assert.That(npc.Target, Is.EqualTo(NpcPlace.Tavern));
+        npc.AdvanceTo(10d, 7.5d);
         Assert.That(npc.State, Is.EqualTo(NpcState.Drinking));
-        Assert.That(npc.Position.X, Is.EqualTo(30d));
-        npc.AdvanceTo(13.9d, 7.5d);
+        Assert.That(npc.Position.X, Is.EqualTo(75d));
+        npc.AdvanceTo(19.9d, 7.5d);
         Assert.That(npc.DrinksCompleted, Is.Zero);
-        npc.AdvanceTo(14d, 7.5d);
-        Assert.That(npc.Hydration, Is.EqualTo(100d));
-        Assert.That(npc.State, Is.EqualTo(NpcState.GoingToEat));
         npc.AdvanceTo(20d, 7.5d);
+        Assert.That(npc.Hydration, Is.EqualTo(100d));
+        // Drink first, then eat at the same tavern without another journey.
         Assert.That(npc.State, Is.EqualTo(NpcState.Eating));
         npc.AdvanceTo(50d, 7.5d);
         Assert.That(npc.Satiation, Is.EqualTo(100d));
@@ -73,7 +76,8 @@ public sealed class NpcSupplyTests
             hydrationLossPerHour = 60d }, roads: new TestRoad(tavern: 0d));
         Assert.That(npc.State, Is.EqualTo(NpcState.Eating));
         npc.AdvanceTo(1d, 7.5d);
-        Assert.That(npc.State, Is.EqualTo(NpcState.GoingToDrink));
+        Assert.That(npc.State, Is.EqualTo(NpcState.Drinking));
+        Assert.That(npc.Target, Is.EqualTo(NpcPlace.Tavern));
         Assert.That(npc.MealsCompleted, Is.Zero);
         Assert.That(npc.Satiation, Is.LessThan(20d));
         Assert.That(npc.Position.X, Is.Zero);
@@ -86,9 +90,9 @@ public sealed class NpcSupplyTests
         npc.AdvanceTo(525d, 7.5d);
         Assert.That(npc.State, Is.EqualTo(NpcState.GoingToDrink));
         Assert.That(npc.Position.X, Is.EqualTo(150d));
-        npc.AdvanceTo(551d, 7.5d);
+        npc.AdvanceTo(545d, 7.5d);
         Assert.That(npc.State, Is.EqualTo(NpcState.GoingToWork));
-        npc.AdvanceTo(567d, 7.5d);
+        npc.AdvanceTo(555d, 7.5d);
         Assert.That(npc.State, Is.EqualTo(NpcState.Working));
 
         var late = Create(new SupplySettings { initialSatiation = 20d + 1010d / 30d });
@@ -98,13 +102,18 @@ public sealed class NpcSupplyTests
         Assert.That(late.IsWorkTime, Is.False);
     }
 
-    [TestCase(7.5d)]
-    [TestCase(3d)]
-    public void MultiDayWaitMatchesTicksIncludingMealsDrinksAndPartialJourneys(double speed)
+    [TestCase(7.5d, 8, 17)]
+    [TestCase(3d, 8, 17)]
+    [TestCase(7.5d, 10, 23)]
+    [TestCase(3d, 10, 23)]
+    [TestCase(7.5d, 8, 18)]
+    [TestCase(3d, 8, 18)]
+    public void MultiDayWaitMatchesTicksIncludingMealsDrinksAndPartialJourneys(double speed, int startHour, int endHour)
     {
         const double end = 8d * 1440d + 535.25d;
-        var jumped = Create();
-        var ticking = Create();
+        var schedule = new WorkSchedule { startHour = startHour, endHour = endHour };
+        var jumped = Create(schedule: schedule);
+        var ticking = Create(schedule: schedule);
         jumped.AdvanceTo(end, speed);
         for (double t = 0.37d; t < end; t += 0.37d) ticking.AdvanceTo(t, speed);
         ticking.AdvanceTo(end, speed);
@@ -119,6 +128,19 @@ public sealed class NpcSupplyTests
         Assert.That(jumped.TravelledMetres, Is.EqualTo(ticking.TravelledMetres).Within(1e-5));
         Assert.That(jumped.MealsCompleted, Is.EqualTo(ticking.MealsCompleted).And.GreaterThan(0d));
         Assert.That(jumped.DrinksCompleted, Is.EqualTo(ticking.DrinksCompleted).And.GreaterThan(0d));
+    }
+
+    [Test]
+    public void DrinkingAcrossShiftEndReturnsHomeInsteadOfResumingWork()
+    {
+        var npc = Create(new SupplySettings { initialHydration = 20d + 1010d / 15d });
+        npc.AdvanceTo(1011d, 7.5d);
+        Assert.That(npc.State, Is.EqualTo(NpcState.GoingToDrink));
+        Assert.That(npc.Target, Is.EqualTo(NpcPlace.Tavern));
+        npc.AdvanceTo(1031d, 7.5d);
+        Assert.That(npc.DrinksCompleted, Is.EqualTo(1d));
+        Assert.That(npc.Target, Is.EqualTo(NpcPlace.Home));
+        Assert.That(npc.IsWorkTime, Is.False);
     }
 
     [Test]

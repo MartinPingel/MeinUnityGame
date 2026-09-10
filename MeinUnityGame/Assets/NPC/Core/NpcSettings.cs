@@ -10,6 +10,7 @@ namespace Village.Npc
     {
         public int startHour = 8;
         public int endHour = 17;
+        public bool commuteBeforeWork;
 
         public bool IsWorkTime(double minutes)
         {

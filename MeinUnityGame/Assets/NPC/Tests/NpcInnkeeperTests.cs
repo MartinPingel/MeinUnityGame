@@ -27,6 +27,62 @@ public sealed class NpcInnkeeperTests
                 new SupplySettings { satiationLossPerHour = 0d, hydrationLossPerHour = 0d });
     }
 
+    private static NpcSimulation CreateCommuter(bool early = true)
+    {
+        return new NpcSimulation(64d,
+            new WorkSchedule { startHour = 10, endHour = 23, commuteBeforeWork = early },
+            new FatigueSettings { initialFatigue = 72d });
+    }
+
+    [Test]
+    public void SeparateHomeCommutesBeforeTenAndReturnsAfterTwentyThree()
+    {
+        var npc = CreateCommuter();
+        npc.AdvanceTo(591d, 7.5d);
+        Assert.That(npc.State, Is.EqualTo(NpcState.Home));
+        npc.AdvanceTo(595d, 7.5d);
+        Assert.That(npc.State, Is.EqualTo(NpcState.GoingToWork));
+        Assert.That(npc.DistanceFromHome, Is.GreaterThan(0d).And.LessThan(64d));
+        Assert.That(npc.WorkedMinutes, Is.Zero);
+        npc.AdvanceTo(600d, 7.5d);
+        Assert.That(npc.State, Is.EqualTo(NpcState.Working));
+        Assert.That(npc.DistanceFromHome, Is.EqualTo(64d).Within(1e-7));
+        npc.AdvanceTo(1380d, 7.5d);
+        Assert.That(npc.State, Is.EqualTo(NpcState.GoingHome));
+        Assert.That(npc.Target, Is.EqualTo(NpcPlace.Home));
+        npc.AdvanceTo(1389d, 7.5d);
+        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
+        Assert.That(npc.DistanceFromHome, Is.Zero);
+    }
+
+    [Test]
+    public void DefaultScheduleStillDepartsAtShiftStart()
+    {
+        var npc = CreateCommuter(false);
+        npc.AdvanceTo(599d, 7.5d);
+        Assert.That(npc.State, Is.EqualTo(NpcState.Home));
+        npc.AdvanceTo(600d, 7.5d);
+        Assert.That(npc.State, Is.EqualTo(NpcState.GoingToWork));
+        Assert.That(npc.DistanceFromHome, Is.Zero);
+    }
+
+    [Test]
+    public void SeparateHomeMultiDayWaitMatchesSmallTicks()
+    {
+        var jumped = CreateCommuter();
+        var ticking = CreateCommuter();
+        const double end = 6d * 1440d + 595d;
+        jumped.AdvanceTo(end, 7.5d);
+        for (double t = 0.37d; t < end; t += 0.37d) ticking.AdvanceTo(t, 7.5d);
+        ticking.AdvanceTo(end, 7.5d);
+        Assert.That(jumped.State, Is.EqualTo(ticking.State));
+        Assert.That(jumped.Target, Is.EqualTo(ticking.Target));
+        Assert.That(jumped.DistanceFromHome, Is.EqualTo(ticking.DistanceFromHome).Within(1e-5));
+        Assert.That(jumped.Energy, Is.EqualTo(ticking.Energy).Within(1e-5));
+        Assert.That(jumped.WorkedMinutes, Is.EqualTo(ticking.WorkedMinutes).Within(1e-5));
+        Assert.That(jumped.SleptMinutes, Is.EqualTo(ticking.SleptMinutes).Within(1e-5));
+    }
+
     [Test]
     public void CoLocatedHomeAndWorkUseInnkeeperHoursWithoutAnArtificialCommute()
     {

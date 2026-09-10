@@ -358,7 +358,7 @@ GameObject:
   - component: {fileID: 200903776}
   - component: {fileID: 200903775}
   m_Layer: 0
-  m_Name: 1.Haus (2)
+  m_Name: Haus von Gunnar
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1072,7 +1072,7 @@ GameObject:
   - component: {fileID: 748632853}
   - component: {fileID: 748632852}
   m_Layer: 0
-  m_Name: 1.Haus (3)
+  m_Name: Haus von Hans
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4284,7 +4284,7 @@ MonoBehaviour:
   workplace: {fileID: 2220000081}
   tavern: {fileID: 2220000051}
   well: {fileID: 2220000091}
-  homeLabel: Wohnhaus 1.Haus (3)
+  homeLabel: Haus von Hans
   workplaceLabel: Feld
   work:
     startHour: 8
@@ -4642,7 +4642,7 @@ Transform:
   m_GameObject: {fileID: 2700000000}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 27.95, y: 1.04, z: 102.1}
+  m_LocalPosition: {x: 52.6, y: 1.04, z: 141.45}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -4688,15 +4688,16 @@ MonoBehaviour:
   profession: Wirt
   clock: {fileID: 2180000002}
   roadRoot: {fileID: 2200000001}
-  home: {fileID: 2220000051}
+  home: {fileID: 2220000021}
   workplace: {fileID: 2220000051}
   tavern: {fileID: 2220000051}
   well: {fileID: 2220000091}
-  homeLabel: Taverne (Zuhause)
+  homeLabel: Haus von Gunnar
   workplaceLabel: Taverne (Arbeitsplatz)
   work:
     startHour: 10
     endHour: 23
+    commuteBeforeWork: 1
   fatigue:
     initialFatigue: 72
     gainPerAwakeHour: 4

@@ -21,6 +21,7 @@ namespace Village.Npc
         private NpcPoint[] route;
         private int nextPoint;
         private double serviceRemaining;
+        private double commuteMinutes;
 
         public double TotalMinutes { get; private set; }
         public double Energy { get; private set; }
@@ -53,7 +54,8 @@ namespace Village.Npc
             settings.Validate();
             supplySettings.Validate();
             this.navigation = navigation;
-            work = new WorkSchedule { startHour = schedule.startHour, endHour = schedule.endHour };
+            work = new WorkSchedule { startHour = schedule.startHour, endHour = schedule.endHour,
+                commuteBeforeWork = schedule.commuteBeforeWork };
             supplies = new SupplySettings
             {
                 initialSatiation = supplySettings.initialSatiation,
@@ -90,6 +92,11 @@ namespace Village.Npc
                 throw new ArgumentOutOfRangeException(nameof(targetMinutes));
             if (double.IsNaN(metresPerGameMinute) || double.IsInfinity(metresPerGameMinute) || metresPerGameMinute <= 0d)
                 throw new ArgumentOutOfRangeException(nameof(metresPerGameMinute));
+            // Opt-in: leave home early enough to cover the existing road route.
+            // Default false preserves the departure behavior of existing NPCs.
+            commuteMinutes = work.commuteBeforeWork
+                ? Math.Min(RouteLength / metresPerGameMinute,
+                    ((work.startHour - work.endHour + 24) % 24) * 60d) : 0d;
             var midnights = targetMinutes - TotalMinutes >= 2880d
                 ? new Dictionary<string, Snapshot>() : null;
             while (targetMinutes - TotalMinutes > Epsilon)
@@ -125,6 +132,13 @@ namespace Village.Npc
                 double nextMidnight = (Math.Floor(TotalMinutes / 1440d) + 1d) * 1440d;
                 double step = Math.Min(targetMinutes - TotalMinutes,
                     Math.Min(work.NextBoundary(TotalMinutes), nextMidnight) - TotalMinutes);
+                if (commuteMinutes > 0d)
+                {
+                    double departure = Math.Floor(TotalMinutes / 1440d) * 1440d
+                        + work.startHour * 60d - commuteMinutes;
+                    if (departure <= TotalMinutes) departure += 1440d;
+                    step = Math.Min(step, departure - TotalMinutes);
+                }
                 bool sleeping = State == NpcState.Sleeping;
                 bool travelling = route != null && nextPoint < route.Length;
                 bool eating = State == NpcState.Eating, drinking = State == NpcState.Drinking;
@@ -188,7 +202,16 @@ namespace Village.Npc
             else if (seekingFood) SetGoal(NpcPlace.Tavern, NpcState.GoingToEat, NpcState.Eating);
             else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
             else if (work.IsWorkTime(TotalMinutes)) SetGoal(NpcPlace.Work, NpcState.GoingToWork, NpcState.Working);
+            else if (IsCommuteTime()) SetGoal(NpcPlace.Work, NpcState.GoingToWork, NpcState.GoingToWork);
             else SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Home);
+        }
+
+        private bool IsCommuteTime()
+        {
+            if (commuteMinutes <= 0d) return false;
+            double start = Math.Floor(TotalMinutes / 1440d) * 1440d + work.startHour * 60d;
+            if (start <= TotalMinutes) start += 1440d;
+            return TotalMinutes >= start - commuteMinutes;
         }
 
         private void SetGoal(NpcPlace destination, NpcState travellingState, NpcState arrivalState)

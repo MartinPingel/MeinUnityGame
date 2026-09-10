@@ -11791,9 +11791,9 @@ MonoBehaviour:
   warehouseName: Taverne
   initialStock:
   - goodsType: Lebensmittel
-    quantity: 100
+    quantity: 20
   - goodsType: Getränke
-    quantity: 100
+    quantity: 20
 --- !u!114 &3500000020
 MonoBehaviour:
   m_ObjectHideFlags: 0

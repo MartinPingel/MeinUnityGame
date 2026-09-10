@@ -1569,7 +1569,7 @@ GameObject:
   - component: {fileID: 2083141834}
   - component: {fileID: 2083141833}
   m_Layer: 0
-  m_Name: Haus des Schmieds
+  m_Name: Haus von Peter
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -10287,7 +10287,7 @@ GameObject:
   - component: {fileID: 3100000001}
   - component: {fileID: 3100000005}
   m_Layer: 0
-  m_Name: Schmied
+  m_Name: Peter – Schmied
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -10401,7 +10401,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7f49a4a996824d67811911988346a208, type: 3}
   m_Name:
   m_EditorClassIdentifier:
-  npcName: Schmied
+  npcName: Peter
   profession: Schmied
   clock: {fileID: 2180000002}
   roadRoot: {fileID: 2200000001}
@@ -10409,7 +10409,7 @@ MonoBehaviour:
   workplace: {fileID: 3000001001}
   tavern: {fileID: 2220000051}
   well: {fileID: 2220000091}
-  homeLabel: Haus des Schmieds
+  homeLabel: Haus von Peter
   workplaceLabel: Schmiede
   work:
     startHour: 8

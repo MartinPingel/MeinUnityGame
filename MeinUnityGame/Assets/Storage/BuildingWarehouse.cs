@@ -12,6 +12,14 @@ namespace Village.Storage
         [Tooltip("Optional starting quantities. Configure before entering Play mode.")]
         [SerializeField] private List<InitialStock> initialStock = new List<InitialStock>();
         private WarehouseStock stock;
+        [Header("Optional workplace tools - configure before Play")]
+        [SerializeField] private bool requiresWorkTools;
+        [SerializeField, Min(0.1f)] private float toolMaximumDurability = 100f;
+        [SerializeField, Min(0.1f)] private float toolWearPerWorkHour = 10f;
+        private WorkplaceTools tools;
+
+        public WorkplaceTools Tools => !requiresWorkTools ? null :
+            tools ?? (tools = new WorkplaceTools(Stock, toolMaximumDurability, toolWearPerWorkHour));
 
         public string WarehouseName => warehouseName;
         public int GetQuantity(string goodsType) => Stock.GetQuantity(goodsType);

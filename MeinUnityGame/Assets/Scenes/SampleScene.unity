@@ -4295,6 +4295,7 @@ MonoBehaviour:
   homeLabel: Haus von Hans
   workplaceLabel: Feld
   deliveryJob: {fileID: 3500000021}
+  workToolWarehouse: {fileID: 3500000020}
   work:
     startHour: 8
     endHour: 17
@@ -8933,6 +8934,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2900000001}
+  - component: {fileID: 4000000010}
   m_Layer: 0
   m_Name: Erzmine_Platzhalter
   m_TagString: Untagged
@@ -10585,6 +10587,7 @@ MonoBehaviour:
   well: {fileID: 2220000091}
   homeLabel: Haus von Justus
   workplaceLabel: Mine
+  workToolWarehouse: {fileID: 4000000010}
   work:
     startHour: 7
     endHour: 17
@@ -11768,6 +11771,9 @@ MonoBehaviour:
   warehousesWithDrinks:
   - {fileID: 3500000010}
   trackedWarehouses:
+  - warehouse: {fileID: 4000000010}
+    goodsTypes:
+    - Werkzeuge
   - warehouse: {fileID: 3600000020}
     goodsTypes:
     - Eisen
@@ -11807,7 +11813,12 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   warehouseName: Bauernhof von Hans
-  initialStock: []
+  initialStock:
+  - goodsType: Werkzeuge
+    quantity: 1
+  requiresWorkTools: 1
+  toolMaximumDurability: 100
+  toolWearPerWorkHour: 10
 --- !u!114 &3500000021
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -13810,6 +13821,11 @@ MonoBehaviour:
   initialStock:
   - goodsType: Eisen
     quantity: 20
+  - goodsType: Werkzeuge
+    quantity: 1
+  requiresWorkTools: 1
+  toolMaximumDurability: 100
+  toolWearPerWorkHour: 10
 --- !u!1 &3800000100
 GameObject:
   m_ObjectHideFlags: 0
@@ -14463,6 +14479,7 @@ MonoBehaviour:
   well: {fileID: 2220000091}
   homeLabel: Haus von Jan
   workplaceLabel: Schmelze
+  workToolWarehouse: {fileID: 3600000020}
   work:
     startHour: 7
     endHour: 17
@@ -14570,3 +14587,23 @@ MonoBehaviour:
   deliveryPoint: {fileID: 2220000051}
   minimumStock: 20
   deliveryQuantity: 40
+
+--- !u!114 &4000000010
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2900000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3e86339c6814bef95b1841c72e92687, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  warehouseName: Mine
+  initialStock:
+  - goodsType: Werkzeuge
+    quantity: 1
+  requiresWorkTools: 1
+  toolMaximumDurability: 100
+  toolWearPerWorkHour: 10

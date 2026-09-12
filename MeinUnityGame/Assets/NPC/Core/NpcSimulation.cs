@@ -27,6 +27,7 @@ namespace Village.Npc
         private readonly double minutesPerUnit;
         private readonly int deliveryQuantity;
         private double productionRemaining;
+        private readonly INpcWorkEquipment workEquipment;
 
         public int CargoQuantity { get; private set; }
         public double ProducedUnits { get; private set; }
@@ -58,7 +59,8 @@ namespace Village.Npc
         public NpcSimulation(INpcNavigation navigation, WorkSchedule schedule,
             FatigueSettings settings, SupplySettings supplySettings,
             Func<bool> consumeFood = null, Func<bool> consumeDrink = null,
-            INpcDeliveryInventory deliveryInventory = null, WorkDeliverySettings deliverySettings = null)
+            INpcDeliveryInventory deliveryInventory = null, WorkDeliverySettings deliverySettings = null,
+            INpcWorkEquipment workEquipment = null)
         {
             if (navigation == null) throw new ArgumentNullException(nameof(navigation));
             schedule.Validate();
@@ -67,6 +69,7 @@ namespace Village.Npc
             this.navigation = navigation;
             this.consumeFood = consumeFood;
             this.consumeDrink = consumeDrink;
+            this.workEquipment = workEquipment;
             if ((deliveryInventory == null) != (deliverySettings == null))
                 throw new ArgumentException("Delivery inventory and settings must be supplied together.");
             this.deliveryInventory = deliveryInventory;
@@ -121,7 +124,7 @@ namespace Village.Npc
                 ? Math.Min(RouteLength / metresPerGameMinute,
                     ((work.startHour - work.endHour + 24) % 24) * 60d) : 0d;
             // External stocks change even if this NPC's state repeats: never skip their consumption.
-            var midnights = consumeFood == null && consumeDrink == null && deliveryInventory == null && targetMinutes - TotalMinutes >= 2880d
+            var midnights = consumeFood == null && consumeDrink == null && deliveryInventory == null && workEquipment == null && targetMinutes - TotalMinutes >= 2880d
                 ? new Dictionary<string, Snapshot>() : null;
             while (targetMinutes - TotalMinutes > Epsilon)
             {
@@ -166,7 +169,9 @@ namespace Village.Npc
                 bool sleeping = State == NpcState.Sleeping;
                 bool travelling = route != null && nextPoint < route.Length;
                 bool eating = State == NpcState.Eating, drinking = State == NpcState.Drinking;
-                bool producing = deliveryInventory != null && State == NpcState.Working &&
+                bool working = State == NpcState.Working && (workEquipment == null || workEquipment.CanWork);
+                if (working && workEquipment != null) step = Math.Min(step, workEquipment.MinutesUntilBreak);
+                bool producing = deliveryInventory != null && working &&
                     (!(deliveryInventory is INpcProductionGate gate) || gate.CanProduce);
                 if (producing) step = Math.Min(step, productionRemaining);
                 if (State == NpcState.Delivering) step = Math.Min(step, 1d);
@@ -185,7 +190,7 @@ namespace Village.Npc
                 if (step <= 0d || TotalMinutes + step == TotalMinutes)
                     throw new InvalidOperationException("NPC simulation could not advance.");
 
-                if (State == NpcState.Working) WorkedMinutes += step;
+                if (working) WorkedMinutes += step;
                 if (producing)
                 {
                     productionRemaining -= step;
@@ -195,6 +200,9 @@ namespace Village.Npc
                         productionRemaining = minutesPerUnit;
                     }
                 }
+                // A cycle completed exactly at break time is valid; following work requires a spare.
+                // No wear on walks, deliveries, need detours, sleep or time without a usable tool.
+                if (working && workEquipment != null) workEquipment.Wear(step);
                 if (sleeping) SleptMinutes += step;
                 Energy = Clamp(Energy + step * (sleeping ? energyRecovery : -energyLoss) / 60d);
                 Satiation = Clamp(Satiation - step * supplies.satiationLossPerHour / 60d);

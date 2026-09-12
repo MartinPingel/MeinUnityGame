@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System.Globalization;
 
 namespace Village.Storage
 {
@@ -72,6 +73,15 @@ namespace Village.Storage
         private void DrawWarehouse(BuildingWarehouse target, string[] trackedGoods = null)
         {
             GUILayout.Label(target.WarehouseName, textStyle);
+            WorkplaceTools tools = target.Tools;
+            if (tools != null)
+            {
+                GUILayout.Label("Werkzeugbestand: " + tools.Quantity, textStyle);
+                GUILayout.Label("Haltbarkeit: " + tools.CurrentDurability.ToString("0.0", CultureInfo.GetCultureInfo("de-DE")) +
+                    " / " + tools.MaximumDurability.ToString("0.0", CultureInfo.GetCultureInfo("de-DE")), textStyle);
+                GUILayout.Label(tools.HasUsableTool ? "Werkzeug verfügbar" :
+                    "Produktion gesperrt: Werkzeug fehlt", textStyle);
+            }
             StockRecord[] entries = target.GetSnapshot();
             if (entries.Length == 0) GUILayout.Label("Leer – keine Waren vorhanden.", textStyle);
             foreach (StockRecord entry in entries)

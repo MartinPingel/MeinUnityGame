@@ -22,6 +22,7 @@ public sealed class NpcAgent : MonoBehaviour
     [SerializeField] private string homeLabel = "Zuhause";
     [SerializeField] private string workplaceLabel = "Arbeitsplatz";
     [SerializeField] private WorkDeliveryJob deliveryJob;
+    [SerializeField] private BuildingWarehouse workToolWarehouse;
 
     [Header("Arbeit, Energie und Versorgung - vor Play einstellen")]
     [SerializeField] private WorkSchedule work = new WorkSchedule();
@@ -60,13 +61,16 @@ public sealed class NpcAgent : MonoBehaviour
             {
                 Physics.SyncTransforms();
                 if (deliveryJob != null) deliveryJob.Validate();
+                if (workToolWarehouse != null && workToolWarehouse.Tools == null)
+                    throw new InvalidOperationException("Assigned workplace warehouse must enable work tools.");
                 var navigation = new SceneNavigation(roadRoot, home, workplace, tavern, well,
                     deliveryJob != null ? deliveryJob.DeliveryPoint : null,
                     deliveryJob != null ? deliveryJob.PickupPoint : null);
                 simulation = new NpcSimulation(navigation, work, fatigue, supplies,
                     () => tavernWarehouse != null && tavernWarehouse.TryRemove("Lebensmittel", 1),
                     () => tavernWarehouse != null && tavernWarehouse.TryRemove("Getränke", 1),
-                    deliveryJob, deliveryJob != null ? deliveryJob.Settings : null);
+                    deliveryJob, deliveryJob != null ? deliveryJob.Settings : null,
+                    workToolWarehouse != null ? new WorkEquipment(workToolWarehouse.Tools) : null);
             }
             // Initialization and re-enabling catch up from the same baseline; nothing is reset.
             Advance(clock.TotalGameMinutes);
@@ -107,6 +111,15 @@ public sealed class NpcAgent : MonoBehaviour
 
     private static Vector3 ToVector(NpcPoint point) => new Vector3((float)point.X, (float)point.Y, (float)point.Z);
     private static NpcPoint ToPoint(Vector3 point) => new NpcPoint(point.x, point.y, point.z);
+
+    private sealed class WorkEquipment : INpcWorkEquipment
+    {
+        private readonly WorkplaceTools tools;
+        public WorkEquipment(WorkplaceTools tools) { this.tools = tools; }
+        public bool CanWork => tools.HasUsableTool;
+        public double MinutesUntilBreak => tools.MinutesUntilBreak;
+        public void Wear(double workMinutes) => tools.Wear(workMinutes);
+    }
 
     /// <summary>Read-only adapter to the unchanged village road router.</summary>
     private sealed class SceneNavigation : INpcNavigation

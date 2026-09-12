@@ -41,14 +41,17 @@ namespace Leveldesign
         private const float FlatMargin = 40f; // flat grass rim right outside the village plate, unchanged
         // Hills only reach full height this far beyond the flat rim: a wide, gentle climb
         // rather than a short ramp, so a taller MaxHillHeight never steepens the village edge.
-        private const float RiseDistance = 220f;
+        // Stretched further so the taller default/ceiling below stay wide rather than steep.
+        private const float RiseDistance = 320f;
 
-        private const float TerrainSize = 1000f;
-        private const float TerrainHeight = 140f; // vertical range of the terrain asset; headroom only
+        // Enlarged so hills this tall still have room to ramp up and roll on for a while
+        // before reaching the terrain's outer edge (see RiseDistance).
+        private const float TerrainSize = 1400f;
+        private const float TerrainHeight = 240f; // vertical range of the terrain asset; headroom only
 
-        private const float MinHillHeight = 10f;
-        private const float MaxHillHeightLimit = 90f;
-        private const float DefaultHillHeight = 45f;
+        private const float MinHillHeight = 15f;
+        private const float MaxHillHeightLimit = 150f;
+        private const float DefaultHillHeight = 70f; // clearly hilly, matching a Mittelgebirge reference photo
         private const string HillHeightPrefsKey = "Leveldesign.Dorf1.MaxHillHeight";
 
         private const int HeightmapResolution = 513;

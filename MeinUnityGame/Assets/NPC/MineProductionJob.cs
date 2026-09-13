@@ -3,35 +3,37 @@ using UnityEngine;
 using Village.Npc;
 using Village.Storage;
 
-/// <summary>Mine output through the existing work-time simulation, without transport tasks.</summary>
+/// <summary>Work-time ore extraction and physical delivery to the smelter.</summary>
 [DisallowMultipleComponent]
 public sealed class MineProductionJob : WorkDeliveryJob, INpcProductionGate
 {
     [SerializeField] private BuildingWarehouse mineWarehouse;
     [SerializeField] private Transform workPoint;
+    [SerializeField] private BuildingWarehouse smelterWarehouse;
+    [SerializeField] private Transform smelterPoint;
+    [SerializeField, Min(1)] private int deliveryQuantity = 10;
     [SerializeField, Range(0.1f, 3600f)] private float unitsPerWorkHour = 6f;
 
     private const string OreGoods = "Eisenerz";
     public override Transform PickupPoint => workPoint;
-    public override Transform DeliveryPoint => workPoint;
+    public override Transform DeliveryPoint => smelterPoint;
     public override string PickupName => "Mine";
-    public override string DestinationName => "Mine";
+    public override string DestinationName => "Schmelze";
     public override string CargoName => OreGoods;
     public override WorkDeliverySettings Settings => new WorkDeliverySettings {
-        unitsPerWorkHour = unitsPerWorkHour, deliveryQuantity = 1 };
+        unitsPerWorkHour = unitsPerWorkHour, deliveryQuantity = deliveryQuantity };
 
     public override void Validate()
     {
-        if (mineWarehouse == null || workPoint == null || mineWarehouse.Tools == null)
-            throw new InvalidOperationException("Mine production needs its warehouse, work point and enabled work tools.");
+        if (mineWarehouse == null || workPoint == null || smelterWarehouse == null || smelterPoint == null ||
+            mineWarehouse == smelterWarehouse)
+            throw new InvalidOperationException("Mine production needs distinct mine/smelter warehouses and road points.");
         Settings.Validate();
     }
 
-    public bool CanProduce => mineWarehouse != null && mineWarehouse.Tools != null &&
-        mineWarehouse.Tools.HasUsableTool && mineWarehouse.GetQuantity(OreGoods) < int.MaxValue;
+    public bool CanProduce => mineWarehouse != null && mineWarehouse.GetQuantity(OreGoods) < int.MaxValue;
 
     // NpcSimulation calls this only after the required actual work time has elapsed.
-    // Its existing work-equipment hook handles wear and exact break boundaries, also when waiting.
     public override bool TryProduceOne()
     {
         if (!CanProduce) return false;
@@ -39,8 +41,12 @@ public sealed class MineProductionJob : WorkDeliveryJob, INpcProductionGate
         catch (OverflowException) { return false; }
     }
 
-    // Ore remains in the mine; no new route, pickup or delivery is introduced.
-    public override bool HasBatch(int quantity) => false;
-    public override bool TryPickUp(int quantity) => false;
-    public override bool TryDeliver(int quantity) => false;
+    public override bool HasBatch(int quantity) => mineWarehouse != null && mineWarehouse.Has(OreGoods, quantity);
+    public override bool TryPickUp(int quantity) => mineWarehouse != null && mineWarehouse.TryRemove(OreGoods, quantity);
+    public override bool TryDeliver(int quantity)
+    {
+        if (smelterWarehouse == null) return false;
+        try { smelterWarehouse.Add(OreGoods, quantity); return true; }
+        catch (OverflowException) { return false; } // Shared simulation keeps the undelivered cargo.
+    }
 }

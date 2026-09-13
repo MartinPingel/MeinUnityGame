@@ -61,7 +61,7 @@ namespace Village.Storage
             foreach (StockWatch watch in trackedWarehouses)
                 if (watch != null && watch.warehouse != null)
                     DrawWarehouse(watch.warehouse, watch.goodsTypes);
-            DrawWarehouse(warehouse);
+            DrawWarehouse(warehouse, new[] { "Lebensmittel", "Werkzeuge" });
             foreach (BuildingWarehouse additional in additionalWarehouses)
                 if (additional != null && additional != warehouse) DrawWarehouse(additional);
             GUILayout.EndScrollView();

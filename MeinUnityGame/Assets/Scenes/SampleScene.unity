@@ -4295,7 +4295,6 @@ MonoBehaviour:
   homeLabel: Haus von Hans
   workplaceLabel: Feld
   deliveryJob: {fileID: 3500000021}
-  workToolWarehouse: {fileID: 3500000020}
   work:
     startHour: 8
     endHour: 17
@@ -10588,7 +10587,6 @@ MonoBehaviour:
   well: {fileID: 2220000091}
   homeLabel: Haus von Justus
   workplaceLabel: Mine
-  workToolWarehouse: {fileID: 4000000010}
   deliveryJob: {fileID: 4100000010}
   work:
     startHour: 7
@@ -11549,6 +11547,7 @@ GameObject:
   - component: {fileID: 3400000001}
   - component: {fileID: 3500000000}
   - component: {fileID: 3500000001}
+  - component: {fileID: 4200000020}
   m_Layer: 0
   m_Name: Marktstand
   m_TagString: Untagged
@@ -11719,6 +11718,7 @@ MonoBehaviour:
   well: {fileID: 2220000091}
   homeLabel: Haus von Marcel
   workplaceLabel: Marktstand
+  deliveryJob: {fileID: 4200000020}
   work:
     startHour: 9
     endHour: 18
@@ -11776,9 +11776,9 @@ MonoBehaviour:
   - warehouse: {fileID: 4000000010}
     goodsTypes:
     - Eisenerz
-    - Werkzeuge
   - warehouse: {fileID: 3600000020}
     goodsTypes:
+    - Eisenerz
     - Eisen
   - warehouse: {fileID: 3500000030}
     goodsTypes:
@@ -11816,10 +11816,8 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   warehouseName: Bauernhof von Hans
-  initialStock:
-  - goodsType: Werkzeuge
-    quantity: 1
-  requiresWorkTools: 1
+  initialStock: []
+  requiresWorkTools: 0
   toolMaximumDurability: 100
   toolWearPerWorkHour: 10
 --- !u!114 &3500000021
@@ -13767,6 +13765,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3600000001}
   - component: {fileID: 3600000020}
+  - component: {fileID: 4200000010}
   m_Layer: 0
   m_Name: Schmelze_Platzhalter
   m_TagString: Untagged
@@ -13821,12 +13820,8 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   warehouseName: Schmelze
-  initialStock:
-  - goodsType: Eisen
-    quantity: 20
-  - goodsType: Werkzeuge
-    quantity: 1
-  requiresWorkTools: 1
+  initialStock: []
+  requiresWorkTools: 0
   toolMaximumDurability: 100
   toolWearPerWorkHour: 10
 --- !u!1 &3800000100
@@ -14482,7 +14477,7 @@ MonoBehaviour:
   well: {fileID: 2220000091}
   homeLabel: Haus von Jan
   workplaceLabel: Schmelze
-  workToolWarehouse: {fileID: 3600000020}
+  deliveryJob: {fileID: 4200000010}
   work:
     startHour: 7
     endHour: 17
@@ -14604,10 +14599,8 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   warehouseName: Mine
-  initialStock:
-  - goodsType: Werkzeuge
-    quantity: 1
-  requiresWorkTools: 1
+  initialStock: []
+  requiresWorkTools: 0
   toolMaximumDurability: 100
   toolWearPerWorkHour: 10
 --- !u!114 &4100000010
@@ -14625,3 +14618,40 @@ MonoBehaviour:
   mineWarehouse: {fileID: 4000000010}
   workPoint: {fileID: 2900001001}
   unitsPerWorkHour: 6
+  smelterWarehouse: {fileID: 3600000020}
+  smelterPoint: {fileID: 3600001001}
+  deliveryQuantity: 10
+--- !u!114 &4200000010
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3600000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c74fffa51fdd41a6a2e646a6fe4f07b1, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  warehouse: {fileID: 3600000020}
+  workPoint: {fileID: 3600001001}
+  orePerCycle: 2
+  ironPerCycle: 1
+  workMinutesPerCycle: 20
+--- !u!114 &4200000020
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3400000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 313cf8eec3df4b48aa1f3fcee046e523, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  smithWarehouse: {fileID: 3500000030}
+  marketWarehouse: {fileID: 3500000000}
+  pickupPoint: {fileID: 3000001001}
+  deliveryPoint: {fileID: 3400001001}
+  deliveryQuantity: 2

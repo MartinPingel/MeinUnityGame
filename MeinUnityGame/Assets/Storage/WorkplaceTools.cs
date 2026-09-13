@@ -15,6 +15,7 @@ namespace Village.Storage
 
         public double MaximumDurability { get; }
         public double WearPerWorkHour { get; }
+        public bool HasEverHadTool { get; private set; }
         public int Quantity => stock.GetQuantity(GoodsType);
         public bool HasUsableTool => Quantity > 0 && remainingMinutes > 0;
         public double CurrentDurability => HasUsableTool
@@ -38,6 +39,7 @@ namespace Village.Storage
 
         private void OnStockChanged()
         {
+            if (Quantity > 0) HasEverHadTool = true; // Irreversible for this warehouse lifetime.
             // Fresh stock must not repair a used tool. Generic withdrawals take spares first.
             if (Quantity == 0) remainingMinutes = 0;
             else if (remainingMinutes <= 0) remainingMinutes = MaximumDurability / WearPerWorkHour * 60d;

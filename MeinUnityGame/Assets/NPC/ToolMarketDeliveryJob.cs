@@ -31,8 +31,9 @@ public sealed class ToolMarketDeliveryJob : WorkDeliveryJob, INpcProductionGate
     }
 
     public override bool TryProduceOne() => false;
-    public override bool HasBatch(int quantity) => smithWarehouse != null && smithWarehouse.Has("Werkzeuge", quantity);
-    public override bool TryPickUp(int quantity) => smithWarehouse != null && smithWarehouse.TryRemove("Werkzeuge", quantity);
+    public override bool HasBatch(int quantity) => smithWarehouse != null && quantity > 0 &&
+        smithWarehouse.GetQuantity("Werkzeuge") - (smithWarehouse.Tools != null ? 2 : 0) >= quantity;
+    public override bool TryPickUp(int quantity) => HasBatch(quantity) && smithWarehouse.TryRemove("Werkzeuge", quantity);
     public override bool TryDeliver(int quantity)
     {
         if (marketWarehouse == null) return false;

@@ -32,6 +32,10 @@ public sealed class SmithDeliveryJob : WorkDeliveryJob, INpcProductionGate
             float.IsInfinity(workMinutesPerCycle) || workMinutesPerCycle < 1f)
             throw new InvalidOperationException("Smith job needs distinct warehouses, road points and positive recipe values.");
         Settings.Validate();
+        // Each real replacement must last long enough to forge its successor.
+        if (smithWarehouse.Tools != null &&
+            smithWarehouse.Tools.MaximumDurability / smithWarehouse.Tools.WearPerWorkHour * 60d < workMinutesPerCycle)
+            throw new InvalidOperationException("Smith tool lifetime must cover at least one complete production cycle.");
     }
 
     public bool CanProduce => smithWarehouse != null &&

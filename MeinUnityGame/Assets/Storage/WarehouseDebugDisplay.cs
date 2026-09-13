@@ -80,7 +80,7 @@ namespace Village.Storage
                 GUILayout.Label("Haltbarkeit: " + tools.CurrentDurability.ToString("0.0", CultureInfo.GetCultureInfo("de-DE")) +
                     " / " + tools.MaximumDurability.ToString("0.0", CultureInfo.GetCultureInfo("de-DE")), textStyle);
                 GUILayout.Label(tools.HasUsableTool ? "Werkzeug verfügbar" :
-                    "Produktion gesperrt: Werkzeug fehlt", textStyle);
+                    (!tools.HasEverHadTool ? "Einmalige Startphase ohne Werkzeug" : "Produktion gesperrt: Werkzeug fehlt"), textStyle);
             }
             StockRecord[] entries = target.GetSnapshot();
             if (entries.Length == 0) GUILayout.Label("Leer – keine Waren vorhanden.", textStyle);

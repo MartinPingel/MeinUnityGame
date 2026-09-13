@@ -29,6 +29,8 @@ namespace Village.Npc
         private double productionRemaining;
         private readonly INpcWorkEquipment workEquipment;
 
+        public int ToolCargoQuantity { get; private set; }
+        public bool WorkBlockedByTool => workEquipment != null && !workEquipment.CanWork;
         public int CargoQuantity { get; private set; }
         public double ProducedUnits { get; private set; }
         public double DeliveredUnits { get; private set; }
@@ -172,7 +174,12 @@ namespace Village.Npc
                 bool travelling = route != null && nextPoint < route.Length;
                 bool eating = State == NpcState.Eating, drinking = State == NpcState.Drinking;
                 bool working = State == NpcState.Working && (workEquipment == null || workEquipment.CanWork);
-                if (working && workEquipment != null) step = Math.Min(step, workEquipment.MinutesUntilBreak);
+                // No wear while an input-dependent workplace is idle.
+                bool wearing = working && workEquipment != null &&
+                    !double.IsPositiveInfinity(workEquipment.MinutesUntilBreak) &&
+                    (!(deliveryInventory is INpcProductionGate equipmentGate) || equipmentGate.CanProduce);
+                if (wearing) step = Math.Min(step, workEquipment.MinutesUntilBreak);
+                if (workEquipment is INpcToolSupply) step = Math.Min(step, 1d);
                 bool producing = deliveryInventory != null && working &&
                     (!(deliveryInventory is INpcProductionGate gate) || gate.CanProduce);
                 if (producing) step = Math.Min(step, productionRemaining);
@@ -204,7 +211,7 @@ namespace Village.Npc
                 }
                 // A cycle completed exactly at break time is valid; following work requires a spare.
                 // No wear on walks, deliveries, need detours, sleep or time without a usable tool.
-                if (working && workEquipment != null) workEquipment.Wear(step);
+                if (wearing) workEquipment.Wear(step);
                 if (sleeping) SleptMinutes += step;
                 Energy = Clamp(Energy + step * (sleeping ? energyRecovery : -energyLoss) / 60d);
                 Satiation = Clamp(Satiation - step * supplies.satiationLossPerHour / 60d);
@@ -273,6 +280,15 @@ namespace Village.Npc
             if (seekingWater) SetGoal(NpcPlace.Tavern, NpcState.GoingToDrink, NpcState.Drinking);
             else if (seekingFood) SetGoal(NpcPlace.Tavern, NpcState.GoingToEat, NpcState.Eating);
             else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
+            else if (ToolCargoQuantity > 0)
+            {
+                SetGoal(NpcPlace.Work, NpcState.ReturningWithTool, NpcState.UnloadingTool);
+                if (State == NpcState.UnloadingTool && ((INpcToolSupply)workEquipment).TryDeposit())
+                {
+                    ToolCargoQuantity = 0;
+                    Decide();
+                }
+            }
             else if (CargoQuantity > 0)
             {
                 SetGoal(NpcPlace.Delivery, NpcState.GoingToDeliver, NpcState.Delivering);
@@ -285,7 +301,20 @@ namespace Village.Npc
             }
             else if (work.IsWorkTime(TotalMinutes))
             {
-                if (deliveryInventory != null && deliveryInventory.HasBatch(deliveryQuantity))
+                if (workEquipment is INpcToolSupply toolSupply && toolSupply.NeedsDelivery)
+                {
+                    SetGoal(NpcPlace.ToolPickup, NpcState.GoingToGetTool, NpcState.CollectingTool);
+                    if (State == NpcState.CollectingTool)
+                    {
+                        if (toolSupply.TryCollect())
+                        {
+                            ToolCargoQuantity = 1;
+                            SetGoal(NpcPlace.Work, NpcState.ReturningWithTool, NpcState.UnloadingTool);
+                        }
+                        else SetGoal(NpcPlace.Work, NpcState.GoingToWork, NpcState.Working);
+                    }
+                }
+                else if (deliveryInventory != null && deliveryInventory.HasBatch(deliveryQuantity))
                 {
                     if (waterSupply != null) { CollectWater(); return; }
                     SetGoal(NpcPlace.Pickup, NpcState.GoingToCollect, NpcState.Collecting);

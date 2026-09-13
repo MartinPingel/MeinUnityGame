@@ -77,6 +77,16 @@ public sealed class NpcDebugDisplay : MonoBehaviour
             text += $"Sättigung: {model.Satiation.ToString("0.0", GermanNumbers)} / 100\n";
             text += $"Flüssigkeit: {model.Hydration.ToString("0.0", GermanNumbers)} / 100\n";
             text += $"Energie: {model.Energy.ToString("0.0", GermanNumbers)} / 100\n";
+            var tools = agent.WorkTools;
+            if (tools == null) text += "Werkzeug: nicht erforderlich\n";
+            else
+            {
+                text += $"Werkzeuge am Arbeitsplatz: {tools.Quantity}\n";
+                text += $"Haltbarkeit: {tools.CurrentDurability.ToString("0.0", GermanNumbers)} / {tools.MaximumDurability.ToString("0.0", GermanNumbers)}\n";
+                text += $"Werkzeugpflicht: {(tools.HasEverHadTool ? "dauerhaft aktiv" : "einmalige Startphase")}\n";
+                if (model.ToolCargoQuantity > 0) text += "Werkzeugtransport: 1\n";
+                if (model.WorkBlockedByTool) text += "Produktion pausiert: Werkzeug fehlt\n";
+            }
             text += $"Arbeitszeit: {agent.WorkHours}\n";
             if (model.CargoQuantity > 0) text += $"Lieferung: {model.CargoQuantity} {agent.CargoName}\n";
             text += $"Arbeitsstatus: {(model.State == NpcState.Working ? "Arbeitet" : model.IsWorkTime ? "Arbeitszeit, derzeit abwesend" : "Feierabend")}\n";
@@ -133,6 +143,10 @@ public sealed class NpcDebugDisplay : MonoBehaviour
     {
         switch (state)
         {
+            case NpcState.GoingToGetTool: return "Holt Werkzeug vom Markt";
+            case NpcState.CollectingTool: return "Nimmt Werkzeug auf";
+            case NpcState.ReturningWithTool: return "Bringt Werkzeug zum Arbeitsplatz";
+            case NpcState.UnloadingTool: return "Lagert Werkzeug ein";
             case NpcState.Home: return "Freizeit (zuhause)";
             case NpcState.GoingToWork: return "Geht zur Arbeit";
             case NpcState.Working: return "Arbeitet";

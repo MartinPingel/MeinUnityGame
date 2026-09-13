@@ -23,6 +23,10 @@ public sealed class NpcAgent : MonoBehaviour
     [SerializeField] private string workplaceLabel = "Arbeitsplatz";
     [SerializeField] private WorkDeliveryJob deliveryJob;
     [SerializeField] private BuildingWarehouse workToolWarehouse;
+    [SerializeField] private BuildingWarehouse toolSourceWarehouse;
+    [SerializeField] private Transform toolPickupPoint;
+
+    public WorkplaceTools WorkTools => workToolWarehouse != null ? workToolWarehouse.Tools : null;
 
     [Header("Arbeit, Energie und Versorgung - vor Play einstellen")]
     [SerializeField] private WorkSchedule work = new WorkSchedule();
@@ -40,6 +44,7 @@ public sealed class NpcAgent : MonoBehaviour
     public string CargoName => deliveryJob != null ? deliveryJob.CargoName : "Ware";
     public string WorkHours => $"{work.startHour:00}:00–{work.endHour:00}:00";
     public string TargetName => simulation == null ? "Nicht bereit" :
+        simulation.Target == NpcPlace.ToolPickup ? "Marktstand (Werkzeug)" :
         simulation.Target == NpcPlace.Tavern ? "Taverne" :
         simulation.Target == NpcPlace.Well ? "Brunnen" :
         simulation.Target == NpcPlace.Delivery ? deliveryJob.DestinationName :
@@ -63,14 +68,16 @@ public sealed class NpcAgent : MonoBehaviour
                 if (deliveryJob != null) deliveryJob.Validate();
                 if (workToolWarehouse != null && workToolWarehouse.Tools == null)
                     throw new InvalidOperationException("Assigned workplace warehouse must enable work tools.");
+                if (toolSourceWarehouse != null && (toolPickupPoint == null || workToolWarehouse == null))
+                    throw new InvalidOperationException("Tool supply needs a workplace and market road point.");
                 var navigation = new SceneNavigation(roadRoot, home, workplace, tavern, well,
                     deliveryJob != null ? deliveryJob.DeliveryPoint : null,
-                    deliveryJob != null ? deliveryJob.PickupPoint : null);
+                    deliveryJob != null ? deliveryJob.PickupPoint : null, toolPickupPoint);
                 simulation = new NpcSimulation(navigation, work, fatigue, supplies,
                     () => tavernWarehouse != null && tavernWarehouse.TryRemove("Lebensmittel", 1),
                     () => tavernWarehouse != null && tavernWarehouse.TryRemove("Getränke", 1),
                     deliveryJob, deliveryJob != null ? deliveryJob.Settings : null,
-                    workToolWarehouse != null ? new WorkEquipment(workToolWarehouse.Tools) : null);
+                    workToolWarehouse != null ? new WorkEquipment(workToolWarehouse, toolSourceWarehouse) : null);
             }
             // Initialization and re-enabling catch up from the same baseline; nothing is reset.
             Advance(clock.TotalGameMinutes);
@@ -112,13 +119,27 @@ public sealed class NpcAgent : MonoBehaviour
     private static Vector3 ToVector(NpcPoint point) => new Vector3((float)point.X, (float)point.Y, (float)point.Z);
     private static NpcPoint ToPoint(Vector3 point) => new NpcPoint(point.x, point.y, point.z);
 
-    private sealed class WorkEquipment : INpcWorkEquipment
+    private sealed class WorkEquipment : INpcToolSupply
     {
+        private readonly BuildingWarehouse destination, source;
         private readonly WorkplaceTools tools;
-        public WorkEquipment(WorkplaceTools tools) { this.tools = tools; }
-        public bool CanWork => tools.HasUsableTool;
+        public WorkEquipment(BuildingWarehouse destination, BuildingWarehouse source)
+        {
+            this.destination = destination;
+            this.source = source;
+            tools = destination.Tools;
+        }
+        public bool CanWork => tools.HasUsableTool || !tools.HasEverHadTool;
         public double MinutesUntilBreak => tools.MinutesUntilBreak;
         public void Wear(double workMinutes) => tools.Wear(workMinutes);
+        public bool NeedsDelivery => !tools.HasUsableTool && source != null &&
+            source != destination && source.Has(WorkplaceTools.GoodsType, 1);
+        public bool TryCollect() => NeedsDelivery && source.TryRemove(WorkplaceTools.GoodsType, 1);
+        public bool TryDeposit()
+        {
+            try { destination.Add(WorkplaceTools.GoodsType, 1); return true; }
+            catch (OverflowException) { return false; }
+        }
     }
 
     /// <summary>Read-only adapter to the unchanged village road router.</summary>
@@ -128,18 +149,20 @@ public sealed class NpcAgent : MonoBehaviour
         private readonly NpcPoint[] places;
 
         public SceneNavigation(Transform roads, Transform home, Transform work, Transform tavern, Transform well,
-            Transform deliveryPoint = null, Transform pickupPoint = null)
+            Transform deliveryPoint = null, Transform pickupPoint = null, Transform toolPoint = null)
         {
             this.roads = roads;
             places = new[] { ToPoint(home.position), ToPoint(work.position),
                 ToPoint(tavern.position), ToPoint(well.position),
                 ToPoint(deliveryPoint != null ? deliveryPoint.position : work.position),
-                ToPoint(pickupPoint != null ? pickupPoint.position : work.position) };
+                ToPoint(pickupPoint != null ? pickupPoint.position : work.position),
+                ToPoint(toolPoint != null ? toolPoint.position : work.position) };
             // Fail at initialization if any required place is disconnected.
             foreach (NpcPlace place in Enum.GetValues(typeof(NpcPlace)))
             {
                 if (place == NpcPlace.Delivery && deliveryPoint == null) continue;
                 if (place == NpcPlace.Pickup && pickupPoint == null) continue;
+                if (place == NpcPlace.ToolPickup && toolPoint == null) continue;
                 FindRoute(places[0], place);
             }
         }

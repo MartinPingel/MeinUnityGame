@@ -4295,6 +4295,9 @@ MonoBehaviour:
   homeLabel: Haus von Hans
   workplaceLabel: Feld
   deliveryJob: {fileID: 3500000021}
+  workToolWarehouse: {fileID: 3500000020}
+  toolSourceWarehouse: {fileID: 3500000000}
+  toolPickupPoint: {fileID: 3400001001}
   work:
     startHour: 8
     endHour: 17
@@ -10427,6 +10430,9 @@ MonoBehaviour:
   homeLabel: Haus von Peter
   workplaceLabel: Schmiede
   deliveryJob: {fileID: 3500000031}
+  workToolWarehouse: {fileID: 3500000030}
+  toolSourceWarehouse: {fileID: 0}
+  toolPickupPoint: {fileID: 0}
   work:
     startHour: 8
     endHour: 18
@@ -10588,6 +10594,9 @@ MonoBehaviour:
   homeLabel: Haus von Justus
   workplaceLabel: Mine
   deliveryJob: {fileID: 4100000010}
+  workToolWarehouse: {fileID: 4000000010}
+  toolSourceWarehouse: {fileID: 3500000000}
+  toolPickupPoint: {fileID: 3400001001}
   work:
     startHour: 7
     endHour: 17
@@ -11817,7 +11826,7 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   warehouseName: Bauernhof von Hans
   initialStock: []
-  requiresWorkTools: 0
+  requiresWorkTools: 1
   toolMaximumDurability: 100
   toolWearPerWorkHour: 10
 --- !u!114 &3500000021
@@ -14513,6 +14522,9 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   warehouseName: Schmiede
   initialStock: []
+  requiresWorkTools: 1
+  toolMaximumDurability: 100
+  toolWearPerWorkHour: 10
 --- !u!114 &3500000031
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -14600,7 +14612,7 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   warehouseName: Mine
   initialStock: []
-  requiresWorkTools: 0
+  requiresWorkTools: 1
   toolMaximumDurability: 100
   toolWearPerWorkHour: 10
 --- !u!114 &4100000010

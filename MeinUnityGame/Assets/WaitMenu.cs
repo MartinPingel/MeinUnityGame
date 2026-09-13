@@ -168,7 +168,7 @@ public sealed class WaitMenu : MonoBehaviour
         int day = (int)System.Math.Floor(minutes / 1440d) + 1;
         int hour = (int)(minutes % 1440d / 60d);
         int minute = (int)(minutes % 60d);
-        return $"Tag {day} – {hour:00}:{minute:00}";
+        return $"Tag {day} – {GameClock.GetWeekdayName(day)} – {hour:00}:{minute:00}";
     }
 
     private void BuildUI()
@@ -212,11 +212,11 @@ public sealed class WaitMenu : MonoBehaviour
         scaler.referenceResolution = new Vector2(1280f, 720f);
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
 
-        RectTransform clockPanel = MakeRect("Clock", uiRoot.transform, 0f, 12f, 320f, 48f);
+        RectTransform clockPanel = MakeRect("Clock", uiRoot.transform, 0f, 12f, 520f, 48f);
         Image clockBackground = clockPanel.gameObject.AddComponent<Image>();
         clockBackground.color = new Color(0.04f, 0.05f, 0.07f, 0.96f);
         clockBackground.raycastTarget = false;
-        clockDisplay = MakeText("", clockPanel, 0f, 0f, 320f, 48f);
+        clockDisplay = MakeText("", clockPanel, 0f, 0f, 520f, 48f);
         clockDisplay.fontSize = 24;
         clockDisplay.fontStyle = FontStyle.Bold;
         RefreshClockDisplay();

@@ -9,6 +9,19 @@ using UnityEngine;
 [DefaultExecutionOrder(-100)]
 public sealed class GameClock : MonoBehaviour
 {
+    private static readonly string[] WeekdayNames =
+        { "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag" };
+
+    /// <summary>Day 1 is Monday. Derived from the game day, including any number of skipped days.</summary>
+    public DayOfWeek CurrentWeekday => (DayOfWeek)(CurrentDay % 7);
+    public string CurrentWeekdayName => GetWeekdayName(CurrentDay);
+
+    public static string GetWeekdayName(int gameDay)
+    {
+        if (gameDay < 1) throw new ArgumentOutOfRangeException(nameof(gameDay));
+        return WeekdayNames[(gameDay - 1) % 7];
+    }
+
     private const double MinutesPerDay = 24d * 60d;
     private const double MaxTotalMinutes = (double)int.MaxValue * MinutesPerDay;
 

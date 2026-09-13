@@ -91,6 +91,7 @@ namespace Village.Npc
                 initialSatiation = supplySettings.initialSatiation,
                 initialHydration = supplySettings.initialHydration,
                 satiationLossPerHour = supplySettings.satiationLossPerHour,
+                productiveSatiationMultiplier = supplySettings.productiveSatiationMultiplier,
                 hydrationLossPerHour = supplySettings.hydrationLossPerHour,
                 hungerThreshold = supplySettings.hungerThreshold,
                 thirstThreshold = supplySettings.thirstThreshold,
@@ -184,11 +185,15 @@ namespace Village.Npc
                 bool producing = deliveryInventory != null && working &&
                     (!(deliveryInventory is INpcProductionGate gate) || gate.CanProduce);
                 if (producing) step = Math.Min(step, productionRemaining);
+                // Only real production receives the hunger surcharge. Needs, travel,
+                // idle shifts and missing inputs/tools retain the ordinary rate.
+                double satiationRate = supplies.satiationLossPerHour *
+                    (producing ? supplies.productiveSatiationMultiplier : 1d);
                 if (State == NpcState.Delivering) step = Math.Min(step, 1d);
                 double energyIn = sleeping ? (wakeEnergy - Energy) / (energyRecovery / 60d)
                     : !seekingRest ? (Energy - sleepEnergy) / (energyLoss / 60d) : double.PositiveInfinity;
-                double foodIn = !seekingFood && supplies.satiationLossPerHour > 0d
-                    ? (Satiation - supplies.hungerThreshold) / (supplies.satiationLossPerHour / 60d)
+                double foodIn = !seekingFood && satiationRate > 0d
+                    ? (Satiation - supplies.hungerThreshold) / (satiationRate / 60d)
                     : double.PositiveInfinity;
                 double waterIn = !seekingWater && supplies.hydrationLossPerHour > 0d
                     ? (Hydration - supplies.thirstThreshold) / (supplies.hydrationLossPerHour / 60d)
@@ -215,7 +220,7 @@ namespace Village.Npc
                 if (wearing) workEquipment.Wear(step);
                 if (sleeping) SleptMinutes += step;
                 Energy = Clamp(Energy + step * (sleeping ? energyRecovery : -energyLoss) / 60d);
-                Satiation = Clamp(Satiation - step * supplies.satiationLossPerHour / 60d);
+                Satiation = Clamp(Satiation - step * satiationRate / 60d);
                 Hydration = Clamp(Hydration - step * supplies.hydrationLossPerHour / 60d);
                 if (step == energyIn) Energy = sleeping ? wakeEnergy : sleepEnergy;
                 if (step == foodIn) Satiation = supplies.hungerThreshold;

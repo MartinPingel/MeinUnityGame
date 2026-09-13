@@ -4311,7 +4311,8 @@ MonoBehaviour:
   supplies:
     initialSatiation: 100
     initialHydration: 100
-    satiationLossPerHour: 2
+    satiationLossPerHour: 5
+    productiveSatiationMultiplier: 2
     hydrationLossPerHour: 4
     hungerThreshold: 20
     thirstThreshold: 20
@@ -4723,7 +4724,8 @@ MonoBehaviour:
   supplies:
     initialSatiation: 100
     initialHydration: 100
-    satiationLossPerHour: 2
+    satiationLossPerHour: 5
+    productiveSatiationMultiplier: 2
     hydrationLossPerHour: 4
     hungerThreshold: 20
     thirstThreshold: 20
@@ -10447,7 +10449,8 @@ MonoBehaviour:
   supplies:
     initialSatiation: 100
     initialHydration: 100
-    satiationLossPerHour: 2
+    satiationLossPerHour: 5
+    productiveSatiationMultiplier: 2
     hydrationLossPerHour: 4
     hungerThreshold: 20
     thirstThreshold: 20
@@ -10611,7 +10614,8 @@ MonoBehaviour:
   supplies:
     initialSatiation: 100
     initialHydration: 100
-    satiationLossPerHour: 2
+    satiationLossPerHour: 5
+    productiveSatiationMultiplier: 2
     hydrationLossPerHour: 4
     hungerThreshold: 20
     thirstThreshold: 20
@@ -11742,7 +11746,8 @@ MonoBehaviour:
   supplies:
     initialSatiation: 100
     initialHydration: 100
-    satiationLossPerHour: 2
+    satiationLossPerHour: 5
+    productiveSatiationMultiplier: 2
     hydrationLossPerHour: 4
     hungerThreshold: 20
     thirstThreshold: 20
@@ -14504,7 +14509,8 @@ MonoBehaviour:
   supplies:
     initialSatiation: 100
     initialHydration: 100
-    satiationLossPerHour: 2
+    satiationLossPerHour: 5
+    productiveSatiationMultiplier: 2
     hydrationLossPerHour: 4
     hungerThreshold: 20
     thirstThreshold: 20
@@ -14723,7 +14729,8 @@ MonoBehaviour:
   supplies:
     initialSatiation: 100
     initialHydration: 100
-    satiationLossPerHour: 2
+    satiationLossPerHour: 5
+    productiveSatiationMultiplier: 2
     hydrationLossPerHour: 4
     hungerThreshold: 20
     thirstThreshold: 20

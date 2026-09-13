@@ -66,6 +66,8 @@ namespace Village.Npc
         public double initialSatiation = 100d;
         public double initialHydration = 100d;
         public double satiationLossPerHour = 2d;
+        // Opt-in keeps older scenes/callers unchanged; configured per NPC in the Inspector.
+        public double productiveSatiationMultiplier = 1d;
         public double hydrationLossPerHour = 4d;
         public double hungerThreshold = 20d;
         public double thirstThreshold = 20d;
@@ -74,14 +76,15 @@ namespace Village.Npc
 
         public void Validate()
         {
-            double[] values = { initialSatiation, initialHydration, satiationLossPerHour,
+            double[] values = { initialSatiation, initialHydration, satiationLossPerHour, productiveSatiationMultiplier,
                 hydrationLossPerHour, hungerThreshold, thirstThreshold, eatingMinutes, drinkingMinutes };
             foreach (double value in values)
                 if (double.IsNaN(value) || double.IsInfinity(value))
                     throw new ArgumentException("Supply settings must be finite.");
             if (initialSatiation < 0d || initialSatiation > 100d ||
                 initialHydration < 0d || initialHydration > 100d ||
-                satiationLossPerHour < 0d || hydrationLossPerHour < 0d ||
+                satiationLossPerHour < 0d || productiveSatiationMultiplier < 1d ||
+                double.IsInfinity(satiationLossPerHour * productiveSatiationMultiplier) || hydrationLossPerHour < 0d ||
                 hungerThreshold < 0d || hungerThreshold >= 100d ||
                 thirstThreshold < 0d || thirstThreshold >= 100d ||
                 eatingMinutes <= 0d || drinkingMinutes <= 0d)

@@ -25,6 +25,8 @@ public sealed class NpcSocialMeetingPlace : MonoBehaviour
             {
                 if (clock == null || roadEntrance == null || aisleJunction == null || places == null || places.Length < 2)
                     throw new InvalidOperationException("Beer garden needs clock, road entrance, aisle and at least two places.");
+                if (placeApproaches == null || placeApproaches.Length != places.Length)
+                    throw new InvalidOperationException("Every beer garden place needs a clear bank approach.");
                 var points = new NpcPoint[places.Length];
                 for (int i = 0; i < places.Length; i++)
                 {
@@ -72,39 +74,54 @@ public sealed class NpcSocialMeetingPlace : MonoBehaviour
 
     private static NpcPoint Point(Vector3 p) => new NpcPoint(p.x, p.y, p.z);
 
-    // Local aisle routing is separate from the unmodified village road graph.
-    // All assigned standing places lie on this clear aisle in front of the tables.
-    private bool OnAisle(Vector3 p)
+    // Each place has an explicit clear approach beside its table/bench.
+    // Reverse the same approach when leaving, including interruptions mid-segment.
+    [SerializeField] private Vector3[] placeApproaches;
+
+    private Vector3[] LocalPath(int index)
     {
-        Vector3 a = roadEntrance.position, j = aisleJunction.position;
-        float minX = j.x, maxX = j.x;
-        foreach (Transform place in places) { minX = Mathf.Min(minX, place.position.x); maxX = Mathf.Max(maxX, place.position.x); }
-        return Mathf.Abs(p.y - j.y) < 0.01f &&
-            ((Mathf.Abs(p.x - j.x) < 0.01f && p.z >= Mathf.Min(a.z, j.z) - 0.01f && p.z <= Mathf.Max(a.z, j.z) + 0.01f) ||
-             (Mathf.Abs(p.z - j.z) < 0.01f && p.x >= minX - 0.01f && p.x <= maxX + 0.01f));
+        Vector3 seat = places[index].position;
+        Vector3 approach = placeApproaches[index];
+        Vector3 junction = aisleJunction.position;
+        return new[] { roadEntrance.position, junction,
+            new Vector3(approach.x, junction.y, junction.z), approach, seat };
     }
+
+    private bool ExitLocal(Vector3 from, List<Vector3> route)
+    {
+        for (int i = 0; i < places.Length; i++)
+        {
+            Vector3[] path = LocalPath(i);
+            for (int j = 1; j < path.Length; j++)
+            {
+                Vector3 a = path[j - 1], b = path[j], segment = b - a;
+                float t = segment.sqrMagnitude < 0.000001f ? 0f :
+                    Mathf.Clamp01(Vector3.Dot(from - a, segment) / segment.sqrMagnitude);
+                if (Vector3.Distance(from, a + t * segment) > 0.01f) continue;
+                for (int k = j - 1; k >= 0; k--) route.Add(path[k]);
+                return true;
+            }
+        }
+        return false;
+    }
+
     public Vector3[] FindRoute(Transform roads, Vector3 from, Vector3 destination, bool socialDestination)
     {
         var route = new List<Vector3> { from };
-        Vector3 entry = roadEntrance.position, junction = aisleJunction.position;
-        bool local = OnAisle(from);
-        bool queueAtEntrance = Vector3.Distance(destination, entry) < 0.001f;
-        if (socialDestination && !queueAtEntrance)
+        Vector3 entry = roadEntrance.position;
+        bool local = ExitLocal(from, route);
+        if (socialDestination && Vector3.Distance(destination, entry) >= 0.001f)
         {
             if (!local) route.AddRange(RoadRouter.FindRoute(roads, from, entry));
-            if (!local || Mathf.Abs(from.z - junction.z) > 0.01f) route.Add(junction);
-            route.Add(destination);
+            int index = Array.FindIndex(places, p => Vector3.Distance(p.position, destination) < 0.001f);
+            if (index < 0) throw new InvalidOperationException("Unknown beer garden seat.");
+            route.AddRange(LocalPath(index));
         }
-        else if (local)
-        {
-            if (Mathf.Abs(from.z - junction.z) < 0.01f) route.Add(junction);
-            route.Add(entry);
-            route.AddRange(RoadRouter.FindRoute(roads, entry, destination));
-        }
-        else route.AddRange(RoadRouter.FindRoute(roads, from, destination));
+        else route.AddRange(RoadRouter.FindRoute(roads, local ? entry : from, destination));
         // Road and local segments share endpoints.
         for (int i = route.Count - 1; i > 0; i--)
             if (Vector3.Distance(route[i], route[i - 1]) < 0.00001f) route.RemoveAt(i);
         return route.ToArray();
     }
 }
+

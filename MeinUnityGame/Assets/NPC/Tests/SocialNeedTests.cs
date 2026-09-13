@@ -26,11 +26,12 @@ public sealed class SocialNeedTests
     private static NpcSocialVenue Venue() => new NpcSocialVenue(new NpcPoint(50, 0, 0),
         new[] { new NpcPoint(100, 0, 0), new NpcPoint(110, 0, 0) });
     private static NpcSimulation Npc(NpcSocialVenue venue, double home = 0, double initial = 30,
-        double loss = 0, double recovery = 30, SupplySettings needs = null, Cargo cargo = null) =>
+        double loss = 0, double recovery = 30, SupplySettings needs = null, Cargo cargo = null,
+        System.Func<bool> food = null, System.Func<bool> drink = null) =>
         new NpcSimulation(new Navigation(home), new WorkSchedule { startHour = 0, endHour = 23 },
             new FatigueSettings { initialFatigue = 0, gainPerAwakeHour = 0.1 },
             needs ?? new SupplySettings { satiationLossPerHour = 0, hydrationLossPerHour = 0 },
-            () => true, () => true, cargo,
+            food ?? (() => true), drink ?? (() => true), cargo,
             cargo == null ? null : new WorkDeliverySettings { unitsPerWorkHour = 1, deliveryQuantity = 10 },
             null, venue, new NpcSocialSettings { initialValue = initial, lossPerHour = loss,
                 needThreshold = 35, satisfiedValue = 85, recoveryPerHour = recovery });
@@ -92,10 +93,41 @@ public sealed class SocialNeedTests
         group.AdvanceTo(1);
         double value = b.Social;
         Assert.That(a.NeedsFood, Is.True);
-        Assert.That(a.SocialSlot, Is.EqualTo(-1));
+        Assert.That(a.SocialSlot, Is.GreaterThanOrEqualTo(0));
+        Assert.That(a.Position.X, Is.EqualTo(100));
         group.AdvanceTo(10);
         Assert.That(b.Social, Is.EqualTo(value).Within(1e-6));
         Assert.That(a.State, Is.EqualTo(NpcState.Eating));
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void BankSupplyUsesExistingStockAndKeepsExclusivePlace(bool drinking)
+    {
+        int stock = 1;
+        System.Func<bool> consume = () => { if (stock == 0) return false; stock--; return true; };
+        var venue = Venue();
+        var a = Npc(venue, needs: new SupplySettings {
+            initialSatiation = drinking ? 100 : 21, initialHydration = drinking ? 21 : 100,
+            satiationLossPerHour = drinking ? 0 : 60, hydrationLossPerHour = drinking ? 60 : 0,
+            eatingMinutes = 2, drinkingMinutes = 2 }, food: consume, drink: consume);
+        var group = new NpcSimulationGroup(); group.Add(a, () => 1000);
+        group.AdvanceTo(1);
+        int slot = a.SocialSlot;
+        Assert.That(slot, Is.GreaterThanOrEqualTo(0));
+        Assert.That(a.Target, Is.EqualTo(NpcPlace.Social));
+        Assert.That(a.State, Is.EqualTo(drinking ? NpcState.Drinking : NpcState.Eating));
+        Assert.That(stock, Is.EqualTo(1));
+        group.AdvanceTo(3);
+        Assert.That(stock, Is.Zero);
+        Assert.That(drinking ? a.Hydration : a.Satiation, Is.EqualTo(100).Within(1e-6));
+        Assert.That(a.SocialSlot, Is.EqualTo(slot));
+        Assert.That(a.Social, Is.EqualTo(30)); // Alone, including during service.
+        Assert.That(a.State, Is.EqualTo(NpcState.WaitingForCompany));
+        group.AdvanceTo(86); // Second service attempt has no stock.
+        Assert.That(drinking ? a.Hydration : a.Satiation, Is.LessThanOrEqualTo(20));
+        Assert.That(drinking ? a.NeedsDrink : a.NeedsFood, Is.True);
+        Assert.That(a.SocialSlot, Is.EqualTo(slot));
     }
 
     [Test]
@@ -143,3 +175,4 @@ public sealed class SocialNeedTests
         Assert.That(a.Energy, Is.EqualTo(c.Energy).Within(1e-5));
     }
 }
+

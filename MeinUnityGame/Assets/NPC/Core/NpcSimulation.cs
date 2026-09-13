@@ -370,7 +370,10 @@ namespace Village.Npc
             {
                 if (Social <= socialSettings.needThreshold + Epsilon) seekingSocial = true;
                 if (Social >= socialSettings.satisfiedValue - Epsilon) seekingSocial = false;
-                if (!seekingSocial || seekingFood || seekingWater || seekingRest) ReleaseSocialPlace();
+                // A meal/drink at an occupied bank place keeps that exclusive reservation.
+                bool seatedSupply = AtSocialPlace && (seekingFood || seekingWater);
+                if ((!seekingSocial && !seatedSupply) || seekingRest ||
+                    ((seekingFood || seekingWater) && !seatedSupply)) ReleaseSocialPlace();
             }
             // Water carried to the tavern is unloaded even when the arrival was a need detour.
             // This is opt-in: farm/smith deliveries retain their existing behavior.
@@ -386,7 +389,7 @@ namespace Village.Npc
             {
                 // Drinking from an empty store cannot resolve thirst. Fetch its water first,
                 // while allowing food/rest to interrupt and never discarding a carried load.
-                if (seekingFood) SetGoal(NpcPlace.Tavern, NpcState.GoingToEat, NpcState.Eating);
+                if (seekingFood) SetGoal(AtSocialPlace ? NpcPlace.Social : NpcPlace.Tavern, NpcState.GoingToEat, NpcState.Eating);
                 else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
                 else if (CargoQuantity > 0)
                     SetGoal(NpcPlace.Delivery, NpcState.GoingToDeliver, NpcState.Delivering);
@@ -394,8 +397,8 @@ namespace Village.Npc
                 else SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Home);
                 return;
             }
-            if (seekingWater) SetGoal(NpcPlace.Tavern, NpcState.GoingToDrink, NpcState.Drinking);
-            else if (seekingFood) SetGoal(NpcPlace.Tavern, NpcState.GoingToEat, NpcState.Eating);
+            if (seekingWater) SetGoal(AtSocialPlace ? NpcPlace.Social : NpcPlace.Tavern, NpcState.GoingToDrink, NpcState.Drinking);
+            else if (seekingFood) SetGoal(AtSocialPlace ? NpcPlace.Social : NpcPlace.Tavern, NpcState.GoingToEat, NpcState.Eating);
             else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
             else if (seekingSocial)
             {
@@ -489,8 +492,12 @@ namespace Village.Npc
             return TotalMinutes >= start - commuteMinutes;
         }
 
+        private bool AtSocialPlace => socialVenue != null && socialSlot >= 0 &&
+            NpcPoint.Distance(Position, socialVenue.GetPlace(socialSlot)) < Epsilon;
+
         private void SetGoal(NpcPlace destination, NpcState travellingState, NpcState arrivalState)
         {
+            if (destination != NpcPlace.Social && socialSlot >= 0) ReleaseSocialPlace();
             if (NpcPoint.Distance(Position, navigation.GetPlace(destination)) < Epsilon)
             {
                 Position = navigation.GetPlace(destination);
@@ -545,3 +552,4 @@ namespace Village.Npc
         private struct Snapshot { public double time, worked, slept, travelled, meals, drinks; }
     }
 }
+

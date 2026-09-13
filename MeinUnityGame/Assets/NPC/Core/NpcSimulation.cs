@@ -50,6 +50,8 @@ namespace Village.Npc
         public double MealsCompleted { get; private set; }
         public double DrinksCompleted { get; private set; }
         public bool IsWorkTime => work.IsWorkTime(TotalMinutes);
+        public bool NeedsFood => seekingFood;
+        public bool NeedsDrink => seekingWater;
         public bool NeedsRest => seekingRest;
 
         public NpcSimulation(double routeLength, WorkSchedule schedule, FatigueSettings settings)

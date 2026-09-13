@@ -80,6 +80,8 @@ public sealed class NpcDebugDisplay : MonoBehaviour
             text += $"Arbeitszeit: {agent.WorkHours}\n";
             if (model.CargoQuantity > 0) text += $"Lieferung: {model.CargoQuantity} {agent.CargoName}\n";
             text += $"Arbeitsstatus: {(model.State == NpcState.Working ? "Arbeitet" : model.IsWorkTime ? "Arbeitszeit, derzeit abwesend" : "Feierabend")}\n";
+            text += $"Hungerbedarf: {(model.NeedsFood ? "Ja" : "Nein")}\n";
+            text += $"Durstbedarf: {(model.NeedsDrink ? "Ja" : "Nein")}\n";
             text += $"Ruhebedarf: {(model.NeedsRest ? "Ja" : "Nein")}\n";
             text += $"Gearbeitet: {model.WorkedMinutes / 60d:0.00} h gesamt\n";
             text += $"Geschlafen: {model.SleptMinutes / 60d:0.00} h gesamt";
@@ -138,7 +140,7 @@ public sealed class NpcDebugDisplay : MonoBehaviour
             case NpcState.Sleeping: return "Schläft";
             case NpcState.GoingToEat: return "Geht zur Taverne";
             case NpcState.Eating: return "Isst";
-            case NpcState.GoingToDrink: return "Geht zum Brunnen";
+            case NpcState.GoingToDrink: return "Geht zur Taverne";
             case NpcState.Drinking: return "Trinkt";
             case NpcState.GoingToDeliver: return "Liefert " + agent.CargoName;
             case NpcState.Delivering: return "Wartet auf Einlagerung";

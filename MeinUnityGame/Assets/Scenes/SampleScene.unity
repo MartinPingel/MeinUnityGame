@@ -13830,7 +13830,7 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   warehouseName: Schmelze
   initialStock: []
-  requiresWorkTools: 0
+  requiresWorkTools: 1
   toolMaximumDurability: 100
   toolWearPerWorkHour: 10
 --- !u!1 &3800000100
@@ -14487,6 +14487,9 @@ MonoBehaviour:
   homeLabel: Haus von Jan
   workplaceLabel: Schmelze
   deliveryJob: {fileID: 4200000010}
+  workToolWarehouse: {fileID: 3600000020}
+  toolSourceWarehouse: {fileID: 3500000000}
+  toolPickupPoint: {fileID: 3400001001}
   work:
     startHour: 7
     endHour: 17

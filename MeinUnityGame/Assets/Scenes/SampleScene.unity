@@ -4299,6 +4299,13 @@ MonoBehaviour:
   workToolWarehouse: {fileID: 3500000020}
   toolSourceWarehouse: {fileID: 3500000000}
   toolPickupPoint: {fileID: 3400001001}
+  socialMeeting: {fileID: 4600000002}
+  social:
+    initialValue: 100
+    lossPerHour: 3
+    needThreshold: 35
+    recoveryPerHour: 30
+    satisfiedValue: 85
   work:
     startHour: 8
     endHour: 17
@@ -4711,6 +4718,13 @@ MonoBehaviour:
   homeLabel: Haus von Gunnar
   workplaceLabel: Taverne (Arbeitsplatz)
   deliveryJob: {fileID: 3900000010}
+  socialMeeting: {fileID: 4600000002}
+  social:
+    initialValue: 100
+    lossPerHour: 3
+    needThreshold: 35
+    recoveryPerHour: 30
+    satisfiedValue: 85
   work:
     startHour: 10
     endHour: 23
@@ -10436,6 +10450,13 @@ MonoBehaviour:
   workToolWarehouse: {fileID: 3500000030}
   toolSourceWarehouse: {fileID: 0}
   toolPickupPoint: {fileID: 0}
+  socialMeeting: {fileID: 4600000002}
+  social:
+    initialValue: 100
+    lossPerHour: 3
+    needThreshold: 35
+    recoveryPerHour: 30
+    satisfiedValue: 85
   work:
     startHour: 8
     endHour: 18
@@ -10601,6 +10622,13 @@ MonoBehaviour:
   workToolWarehouse: {fileID: 4000000010}
   toolSourceWarehouse: {fileID: 3500000000}
   toolPickupPoint: {fileID: 3400001001}
+  socialMeeting: {fileID: 4600000002}
+  social:
+    initialValue: 100
+    lossPerHour: 3
+    needThreshold: 35
+    recoveryPerHour: 30
+    satisfiedValue: 85
   work:
     startHour: 7
     endHour: 17
@@ -11733,6 +11761,13 @@ MonoBehaviour:
   homeLabel: Haus von Marcel
   workplaceLabel: Marktstand
   deliveryJob: {fileID: 4200000020}
+  socialMeeting: {fileID: 4600000002}
+  social:
+    initialValue: 100
+    lossPerHour: 3
+    needThreshold: 35
+    recoveryPerHour: 30
+    satisfiedValue: 85
   work:
     startHour: 9
     endHour: 18
@@ -14496,6 +14531,13 @@ MonoBehaviour:
   workToolWarehouse: {fileID: 3600000020}
   toolSourceWarehouse: {fileID: 3500000000}
   toolPickupPoint: {fileID: 3400001001}
+  socialMeeting: {fileID: 4600000002}
+  social:
+    initialValue: 100
+    lossPerHour: 3
+    needThreshold: 35
+    recoveryPerHour: 30
+    satisfiedValue: 85
   work:
     startHour: 7
     endHour: 17
@@ -14716,6 +14758,13 @@ MonoBehaviour:
   homeLabel: Haus von Michael
   workplaceLabel: Mine (Beladeplatz)
   deliveryJob: {fileID: 4300000006}
+  socialMeeting: {fileID: 4600000002}
+  social:
+    initialValue: 100
+    lossPerHour: 3
+    needThreshold: 35
+    recoveryPerHour: 30
+    satisfiedValue: 85
   work:
     startHour: 7
     endHour: 17
@@ -21057,6 +21106,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4500000001}
+  - component: {fileID: 4600000002}
   m_Layer: 0
   m_Name: Taverne_Biergarten
   m_TagString: Untagged
@@ -21119,8 +21169,223 @@ Transform:
   - {fileID: 4500000404}
   - {fileID: 4500000414}
   - {fileID: 4500000424}
+  - {fileID: 4600000101}
+  - {fileID: 4600000111}
+  - {fileID: 4600000201}
+  - {fileID: 4600000211}
+  - {fileID: 4600000221}
+  - {fileID: 4600000231}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &4600000100
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4600000101}
+  m_Layer: 0
+  m_Name: Sozial_Zugang_vom_Tavernenweg
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4600000101
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4600000100}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 33.6, y: 0.04, z: 102.1}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4500000001}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &4600000110
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4600000111}
+  m_Layer: 0
+  m_Name: Sozial_Gang_im_Biergarten
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4600000111
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4600000110}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 33.6, y: 0.04, z: 107}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4500000001}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &4600000200
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4600000201}
+  m_Layer: 0
+  m_Name: Aufenthaltsplatz_4
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4600000201
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4600000200}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 20, y: 0.04, z: 107}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4500000001}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &4600000210
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4600000211}
+  m_Layer: 0
+  m_Name: Aufenthaltsplatz_5
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4600000211
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4600000210}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 24, y: 0.04, z: 107}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4500000001}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &4600000220
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4600000221}
+  m_Layer: 0
+  m_Name: Aufenthaltsplatz_6
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4600000221
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4600000220}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 29, y: 0.04, z: 107}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4500000001}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &4600000230
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4600000231}
+  m_Layer: 0
+  m_Name: Aufenthaltsplatz_7
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4600000231
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4600000230}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 34, y: 0.04, z: 107}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4500000001}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &4600000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4500000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3cc3b0c426994853977667c47741a405, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  clock: {fileID: 2180000002}
+  roadEntrance: {fileID: 4600000101}
+  aisleJunction: {fileID: 4600000111}
+  places:
+  - {fileID: 4600000201}
+  - {fileID: 4500001211}
+  - {fileID: 4600000211}
+  - {fileID: 4500001221}
+  - {fileID: 4600000221}
+  - {fileID: 4500001231}
+  - {fileID: 4600000231}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

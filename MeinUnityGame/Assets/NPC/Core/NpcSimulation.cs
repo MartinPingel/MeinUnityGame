@@ -28,6 +28,17 @@ namespace Village.Npc
         private readonly int deliveryQuantity;
         private double productionRemaining;
         private readonly INpcWorkEquipment workEquipment;
+        private readonly NpcSocialVenue socialVenue;
+        private readonly NpcSocialSettings socialSettings;
+        private bool seekingSocial;
+        private int socialSlot = -1;
+        public double Social { get; private set; } = 100d;
+        public bool NeedsSocial => seekingSocial;
+        public int SocialSlot => socialSlot;
+        internal NpcSocialVenue SocialVenue => socialVenue;
+        internal bool SocialParticipant => socialSlot >= 0 &&
+            (State == NpcState.WaitingForCompany || State == NpcState.Socialising) &&
+            !seekingFood && !seekingWater && !seekingRest;
 
         public int ToolCargoQuantity { get; private set; }
         public bool WorkBlockedByTool => workEquipment != null && !workEquipment.CanWork;
@@ -64,7 +75,8 @@ namespace Village.Npc
             FatigueSettings settings, SupplySettings supplySettings,
             Func<bool> consumeFood = null, Func<bool> consumeDrink = null,
             INpcDeliveryInventory deliveryInventory = null, WorkDeliverySettings deliverySettings = null,
-            INpcWorkEquipment workEquipment = null)
+            INpcWorkEquipment workEquipment = null,
+            NpcSocialVenue socialVenue = null, NpcSocialSettings socialSettings = null)
         {
             if (navigation == null) throw new ArgumentNullException(nameof(navigation));
             schedule.Validate();
@@ -74,6 +86,17 @@ namespace Village.Npc
             this.consumeFood = consumeFood;
             this.consumeDrink = consumeDrink;
             this.workEquipment = workEquipment;
+            if (socialVenue != null)
+            {
+                if (!(navigation is INpcSocialNavigation) || socialSettings == null)
+                    throw new ArgumentException("Social NPC needs social navigation and settings.");
+                socialSettings.Validate();
+                this.socialVenue = socialVenue;
+                this.socialSettings = new NpcSocialSettings { initialValue = socialSettings.initialValue,
+                    lossPerHour = socialSettings.lossPerHour, needThreshold = socialSettings.needThreshold,
+                    recoveryPerHour = socialSettings.recoveryPerHour, satisfiedValue = socialSettings.satisfiedValue };
+                Social = socialSettings.initialValue;
+            }
             if ((deliveryInventory == null) != (deliverySettings == null))
                 throw new ArgumentException("Delivery inventory and settings must be supplied together.");
             this.deliveryInventory = deliveryInventory;
@@ -129,7 +152,7 @@ namespace Village.Npc
                 ? Math.Min(RouteLength / (metresPerGameMinute * TravelMultiplier(0)),
                     ((work.startHour - work.endHour + 24) % 24) * 60d) : 0d;
             // External stocks change even if this NPC's state repeats: never skip their consumption.
-            var midnights = consumeFood == null && consumeDrink == null && deliveryInventory == null && workEquipment == null && targetMinutes - TotalMinutes >= 2880d
+            var midnights = consumeFood == null && consumeDrink == null && deliveryInventory == null && workEquipment == null && socialVenue == null && targetMinutes - TotalMinutes >= 2880d
                 ? new Dictionary<string, Snapshot>() : null;
             while (targetMinutes - TotalMinutes > Epsilon)
             {
@@ -161,98 +184,171 @@ namespace Village.Npc
                             meals = MealsCompleted, drinks = DrinksCompleted });
                 }
 
-                double nextMidnight = (Math.Floor(TotalMinutes / 1440d) + 1d) * 1440d;
-                double step = Math.Min(targetMinutes - TotalMinutes,
-                    Math.Min(work.NextBoundary(TotalMinutes), nextMidnight) - TotalMinutes);
-                if (commuteMinutes > 0d)
-                {
-                    double departure = Math.Floor(TotalMinutes / 1440d) * 1440d
-                        + work.startHour * 60d - commuteMinutes;
-                    if (departure <= TotalMinutes) departure += 1440d;
-                    step = Math.Min(step, departure - TotalMinutes);
-                }
-                bool sleeping = State == NpcState.Sleeping;
-                bool travelling = route != null && nextPoint < route.Length;
-                double travelSpeed = metresPerGameMinute * TravelMultiplier(CargoQuantity);
-                bool eating = State == NpcState.Eating, drinking = State == NpcState.Drinking;
-                bool working = State == NpcState.Working && (workEquipment == null || workEquipment.CanWork);
-                // No wear while an input-dependent workplace is idle.
-                bool wearing = working && workEquipment != null &&
-                    !double.IsPositiveInfinity(workEquipment.MinutesUntilBreak) &&
-                    (!(deliveryInventory is INpcProductionGate equipmentGate) || equipmentGate.CanProduce);
-                if (wearing) step = Math.Min(step, workEquipment.MinutesUntilBreak);
-                if (workEquipment is INpcToolSupply) step = Math.Min(step, 1d);
-                bool producing = deliveryInventory != null && working &&
-                    (!(deliveryInventory is INpcProductionGate gate) || gate.CanProduce);
-                if (producing) step = Math.Min(step, productionRemaining);
-                // Only real production receives the hunger surcharge. Needs, travel,
-                // idle shifts and missing inputs/tools retain the ordinary rate.
-                double satiationRate = supplies.satiationLossPerHour *
-                    (producing ? supplies.productiveSatiationMultiplier : 1d);
-                if (State == NpcState.Delivering) step = Math.Min(step, 1d);
-                double energyIn = sleeping ? (wakeEnergy - Energy) / (energyRecovery / 60d)
-                    : !seekingRest ? (Energy - sleepEnergy) / (energyLoss / 60d) : double.PositiveInfinity;
-                double foodIn = !seekingFood && satiationRate > 0d
-                    ? (Satiation - supplies.hungerThreshold) / (satiationRate / 60d)
-                    : double.PositiveInfinity;
-                double waterIn = !seekingWater && supplies.hydrationLossPerHour > 0d
-                    ? (Hydration - supplies.thirstThreshold) / (supplies.hydrationLossPerHour / 60d)
-                    : double.PositiveInfinity;
-                double arrivalIn = travelling ? NpcPoint.Distance(Position, route[nextPoint]) / travelSpeed
-                    : double.PositiveInfinity;
-                step = Math.Min(step, Math.Min(Math.Min(energyIn, foodIn), Math.Min(waterIn, arrivalIn)));
-                if (eating || drinking) step = Math.Min(step, serviceRemaining);
-                if (step <= 0d || TotalMinutes + step == TotalMinutes)
-                    throw new InvalidOperationException("NPC simulation could not advance.");
-
-                if (working) WorkedMinutes += step;
-                if (producing)
-                {
-                    productionRemaining -= step;
-                    if (productionRemaining <= Epsilon)
-                    {
-                        if (deliveryInventory.TryProduceOne()) ProducedUnits++;
-                        productionRemaining = minutesPerUnit;
-                    }
-                }
-                // A cycle completed exactly at break time is valid; following work requires a spare.
-                // No wear on walks, deliveries, need detours, sleep or time without a usable tool.
-                if (wearing) workEquipment.Wear(step);
-                if (sleeping) SleptMinutes += step;
-                Energy = Clamp(Energy + step * (sleeping ? energyRecovery : -energyLoss) / 60d);
-                Satiation = Clamp(Satiation - step * satiationRate / 60d);
-                Hydration = Clamp(Hydration - step * supplies.hydrationLossPerHour / 60d);
-                if (step == energyIn) Energy = sleeping ? wakeEnergy : sleepEnergy;
-                if (step == foodIn) Satiation = supplies.hungerThreshold;
-                if (step == waterIn) Hydration = supplies.thirstThreshold;
-                if (travelling)
-                {
-                    NpcPoint to = route[nextPoint];
-                    double length = NpcPoint.Distance(Position, to);
-                    double travelled = Math.Min(length, travelSpeed * step);
-                    Facing = new NpcPoint(to.X - Position.X, to.Y - Position.Y, to.Z - Position.Z);
-                    Position = step == arrivalIn ? to : NpcPoint.Lerp(Position, to, travelled / length);
-                    TravelledMetres += travelled;
-                    if (step == arrivalIn) nextPoint++;
-                }
-                if (eating || drinking)
-                {
-                    serviceRemaining -= step;
-                    if (serviceRemaining <= Epsilon)
-                    {
-                        if (eating && (consumeFood == null || consumeFood()))
-                        { Satiation = 100d; seekingFood = false; MealsCompleted++; }
-                        if (drinking && (consumeDrink == null || consumeDrink()))
-                        { Hydration = 100d; seekingWater = false; DrinksCompleted++; }
-                        // Empty stock grants nothing; the need stays active and service can retry.
-                        serviceRemaining = 0d;
-                        State = NpcState.Home; // Neutral until Decide re-evaluates current priorities.
-                    }
-                }
-                TotalMinutes += step;
+                StepFrame frame = PlanStep(targetMinutes, metresPerGameMinute);
+                ApplyStep(frame, frame.Step);
             }
             TotalMinutes = targetMinutes;
             Decide();
+        }
+
+        internal struct StepFrame
+        {
+            public double Step;
+            public bool sleeping;
+            public bool travelling;
+            public double travelSpeed;
+            public bool eating;
+            public bool drinking;
+            public bool working;
+            public bool wearing;
+            public bool producing;
+            public double satiationRate;
+            public double energyIn;
+            public double foodIn;
+            public double waterIn;
+            public double arrivalIn;
+            public bool socialising;
+            public double socialRate;
+            public double socialIn;
+        }
+
+        internal StepFrame PlanStep(double targetMinutes, double metresPerGameMinute)
+        {
+            double nextMidnight = (Math.Floor(TotalMinutes / 1440d) + 1d) * 1440d;
+            double step = Math.Min(targetMinutes - TotalMinutes,
+                Math.Min(work.NextBoundary(TotalMinutes), nextMidnight) - TotalMinutes);
+            if (commuteMinutes > 0d)
+            {
+                double departure = Math.Floor(TotalMinutes / 1440d) * 1440d
+                    + work.startHour * 60d - commuteMinutes;
+                if (departure <= TotalMinutes) departure += 1440d;
+                step = Math.Min(step, departure - TotalMinutes);
+            }
+            bool sleeping = State == NpcState.Sleeping;
+            bool travelling = route != null && nextPoint < route.Length;
+            double travelSpeed = metresPerGameMinute * TravelMultiplier(CargoQuantity);
+            bool eating = State == NpcState.Eating, drinking = State == NpcState.Drinking;
+            bool working = State == NpcState.Working && (workEquipment == null || workEquipment.CanWork);
+            // No wear while an input-dependent workplace is idle.
+            bool wearing = working && workEquipment != null &&
+                !double.IsPositiveInfinity(workEquipment.MinutesUntilBreak) &&
+                (!(deliveryInventory is INpcProductionGate equipmentGate) || equipmentGate.CanProduce);
+            if (wearing) step = Math.Min(step, workEquipment.MinutesUntilBreak);
+            if (workEquipment is INpcToolSupply) step = Math.Min(step, 1d);
+            bool producing = deliveryInventory != null && working &&
+                (!(deliveryInventory is INpcProductionGate gate) || gate.CanProduce);
+            if (producing) step = Math.Min(step, productionRemaining);
+            // Only real production receives the hunger surcharge. Needs, travel,
+            // idle shifts and missing inputs/tools retain the ordinary rate.
+            double satiationRate = supplies.satiationLossPerHour *
+                (producing ? supplies.productiveSatiationMultiplier : 1d);
+            if (State == NpcState.Delivering) step = Math.Min(step, 1d);
+            double energyIn = sleeping ? (wakeEnergy - Energy) / (energyRecovery / 60d)
+                : !seekingRest ? (Energy - sleepEnergy) / (energyLoss / 60d) : double.PositiveInfinity;
+            double foodIn = !seekingFood && satiationRate > 0d
+                ? (Satiation - supplies.hungerThreshold) / (satiationRate / 60d)
+                : double.PositiveInfinity;
+            double waterIn = !seekingWater && supplies.hydrationLossPerHour > 0d
+                ? (Hydration - supplies.thirstThreshold) / (supplies.hydrationLossPerHour / 60d)
+                : double.PositiveInfinity;
+            double arrivalIn = travelling ? NpcPoint.Distance(Position, route[nextPoint]) / travelSpeed
+                : double.PositiveInfinity;
+            step = Math.Min(step, Math.Min(Math.Min(energyIn, foodIn), Math.Min(waterIn, arrivalIn)));
+            if (eating || drinking) step = Math.Min(step, serviceRemaining);
+            bool socialising = socialVenue != null && State == NpcState.Socialising;
+            double socialRate = socialSettings == null ? 0d :
+                socialising ? socialSettings.recoveryPerHour : -socialSettings.lossPerHour;
+            double socialIn = socialising ? (socialSettings.satisfiedValue - Social) / (socialRate / 60d)
+                : socialSettings != null && !seekingSocial && socialSettings.lossPerHour > 0
+                    ? (Social - socialSettings.needThreshold) / (socialSettings.lossPerHour / 60d)
+                    : double.PositiveInfinity;
+            step = Math.Min(step, socialIn);
+            if (step <= 0d || TotalMinutes + step == TotalMinutes)
+                throw new InvalidOperationException("NPC simulation could not advance.");
+
+            return new StepFrame
+            {
+                Step = step, sleeping = sleeping, travelling = travelling,
+                travelSpeed = travelSpeed, eating = eating, drinking = drinking,
+                working = working, wearing = wearing, producing = producing,
+                satiationRate = satiationRate, energyIn = energyIn, foodIn = foodIn,
+                waterIn = waterIn, arrivalIn = arrivalIn, socialising = socialising,
+                socialRate = socialRate, socialIn = socialIn
+            };
+        }
+
+        internal void ApplyStep(StepFrame frame, double step)
+        {
+            if (frame.working) WorkedMinutes += step;
+            if (frame.producing)
+            {
+                productionRemaining -= step;
+                if (productionRemaining <= Epsilon)
+                {
+                    if (deliveryInventory.TryProduceOne()) ProducedUnits++;
+                    productionRemaining = minutesPerUnit;
+                }
+            }
+            // A cycle completed exactly at break time is valid; following work requires a spare.
+            // No wear on walks, deliveries, need detours, sleep or time without a usable tool.
+            if (frame.wearing) workEquipment.Wear(step);
+            if (frame.sleeping) SleptMinutes += step;
+            Energy = Clamp(Energy + step * (frame.sleeping ? energyRecovery : -energyLoss) / 60d);
+            Satiation = Clamp(Satiation - step * frame.satiationRate / 60d);
+            Hydration = Clamp(Hydration - step * supplies.hydrationLossPerHour / 60d);
+            if (step == frame.energyIn) Energy = frame.sleeping ? wakeEnergy : sleepEnergy;
+            if (step == frame.foodIn) Satiation = supplies.hungerThreshold;
+            if (step == frame.waterIn) Hydration = supplies.thirstThreshold;
+            if (frame.travelling)
+            {
+                NpcPoint to = route[nextPoint];
+                double length = NpcPoint.Distance(Position, to);
+                double travelled = Math.Min(length, frame.travelSpeed * step);
+                Facing = new NpcPoint(to.X - Position.X, to.Y - Position.Y, to.Z - Position.Z);
+                Position = step == frame.arrivalIn ? to : NpcPoint.Lerp(Position, to, travelled / length);
+                TravelledMetres += travelled;
+                if (step == frame.arrivalIn) nextPoint++;
+            }
+            if (frame.eating || frame.drinking)
+            {
+                serviceRemaining -= step;
+                if (serviceRemaining <= Epsilon)
+                {
+                    if (frame.eating && (consumeFood == null || consumeFood()))
+                    { Satiation = 100d; seekingFood = false; MealsCompleted++; }
+                    if (frame.drinking && (consumeDrink == null || consumeDrink()))
+                    { Hydration = 100d; seekingWater = false; DrinksCompleted++; }
+                    // Empty stock grants nothing; the need stays active and service can retry.
+                    serviceRemaining = 0d;
+                    State = NpcState.Home; // Neutral until Decide re-evaluates current priorities.
+                }
+            }
+            if (socialSettings != null)
+            {
+                Social = Clamp(Social + step * frame.socialRate / 60d);
+                if (step == frame.socialIn) Social = frame.socialising ? socialSettings.satisfiedValue : socialSettings.needThreshold;
+            }
+            TotalMinutes += step;
+        }
+
+        internal void PrepareGroupStep(double speed)
+        {
+            commuteMinutes = work.commuteBeforeWork
+                ? Math.Min(RouteLength / (speed * TravelMultiplier(0)),
+                    ((work.startHour - work.endHour + 24) % 24) * 60d) : 0d;
+            Decide();
+        }
+
+        internal void SetSocialContact(bool contact)
+        {
+            if (SocialParticipant) State = contact ? NpcState.Socialising : NpcState.WaitingForCompany;
+        }
+
+        public void ReleaseSocialPlace()
+        {
+            if (socialVenue != null) socialVenue.Release(this);
+            socialSlot = -1;
+            if (State == NpcState.Socialising) State = NpcState.WaitingForCompany;
         }
 
         private double TravelMultiplier(int cargo)
@@ -270,6 +366,12 @@ namespace Village.Npc
             if (Satiation <= supplies.hungerThreshold + Epsilon) seekingFood = true;
             if (Energy <= sleepEnergy + Epsilon) seekingRest = true;
             if (State == NpcState.Sleeping && Energy >= wakeEnergy - Epsilon) seekingRest = false;
+            if (socialVenue != null)
+            {
+                if (Social <= socialSettings.needThreshold + Epsilon) seekingSocial = true;
+                if (Social >= socialSettings.satisfiedValue - Epsilon) seekingSocial = false;
+                if (!seekingSocial || seekingFood || seekingWater || seekingRest) ReleaseSocialPlace();
+            }
             // Water carried to the tavern is unloaded even when the arrival was a need detour.
             // This is opt-in: farm/smith deliveries retain their existing behavior.
             var waterSupply = deliveryInventory as INpcWaterSupply;
@@ -295,6 +397,15 @@ namespace Village.Npc
             if (seekingWater) SetGoal(NpcPlace.Tavern, NpcState.GoingToDrink, NpcState.Drinking);
             else if (seekingFood) SetGoal(NpcPlace.Tavern, NpcState.GoingToEat, NpcState.Eating);
             else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
+            else if (seekingSocial)
+            {
+                int previousSlot = socialSlot;
+                socialSlot = socialVenue.Reserve(this);
+                if (socialSlot != previousSlot) route = null;
+                ((INpcSocialNavigation)navigation).SetSocialDestination(socialVenue.GetPlace(socialSlot));
+                SetGoal(NpcPlace.Social, NpcState.GoingToSocial,
+                    socialSlot < 0 ? NpcState.WaitingForSocialPlace : NpcState.WaitingForCompany);
+            }
             else if (ToolCargoQuantity > 0)
             {
                 SetGoal(NpcPlace.Work, NpcState.ReturningWithTool, NpcState.UnloadingTool);

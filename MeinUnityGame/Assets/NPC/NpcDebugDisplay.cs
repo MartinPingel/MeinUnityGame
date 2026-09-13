@@ -87,6 +87,8 @@ public sealed class NpcDebugDisplay : MonoBehaviour
                 if (model.ToolCargoQuantity > 0) text += "Werkzeugtransport: 1\n";
                 if (model.WorkBlockedByTool) text += "Produktion pausiert: Werkzeug fehlt\n";
             }
+            text += $"Sozial: {model.Social.ToString("0.0", GermanNumbers)} / 100\n";
+            text += $"Sozialbedarf: {(model.NeedsSocial ? "Ja" : "Nein")}\n";
             text += $"Arbeitszeit: {agent.WorkHours}\n";
             var wagon = agent.GetComponent<WagonDeliveryJob>();
             if (wagon != null)
@@ -150,6 +152,10 @@ public sealed class NpcDebugDisplay : MonoBehaviour
             case NpcState.CollectingTool: return "Nimmt Werkzeug auf";
             case NpcState.ReturningWithTool: return "Bringt Werkzeug zum Arbeitsplatz";
             case NpcState.UnloadingTool: return "Lagert Werkzeug ein";
+            case NpcState.GoingToSocial: return "Geht zum Sozialkontakt";
+            case NpcState.WaitingForSocialPlace: return "Wartet auf freien Aufenthaltsplatz";
+            case NpcState.WaitingForCompany: return "Wartet auf Gesellschaft";
+            case NpcState.Socialising: return "Pflegt Sozialkontakt";
             case NpcState.Home: return "Freizeit (zuhause)";
             case NpcState.GoingToWork: return "Geht zur Arbeit";
             case NpcState.Working: return agent.GetComponent<WagonDeliveryJob>() != null ? "Wartet auf Erzladung" : "Arbeitet";

@@ -25,6 +25,9 @@ public sealed class NpcAgent : MonoBehaviour
     [SerializeField] private BuildingWarehouse workToolWarehouse;
     [SerializeField] private BuildingWarehouse toolSourceWarehouse;
     [SerializeField] private Transform toolPickupPoint;
+    [Header("Sozialkontakt")]
+    [SerializeField] private NpcSocialMeetingPlace socialMeeting;
+    [SerializeField] private NpcSocialSettings social = new NpcSocialSettings();
 
     public WorkplaceTools WorkTools => workToolWarehouse != null ? workToolWarehouse.Tools : null;
 
@@ -41,9 +44,11 @@ public sealed class NpcAgent : MonoBehaviour
     public string Profession => profession;
     public GameClock Clock => clock;
     public NpcSimulation Simulation => simulation;
+    public double GameMetresPerMinute => walkingMetresPerSecond * (double)clock.RealMinutesPerDay / 24d;
     public string CargoName => deliveryJob != null ? deliveryJob.CargoName : "Ware";
     public string WorkHours => $"{work.startHour:00}:00–{work.endHour:00}:00";
     public string TargetName => simulation == null ? "Nicht bereit" :
+        simulation.Target == NpcPlace.Social ? "Biergarten" :
         simulation.Target == NpcPlace.ToolPickup ? "Marktstand (Werkzeug)" :
         simulation.Target == NpcPlace.Tavern ? "Taverne" :
         simulation.Target == NpcPlace.Well ? "Brunnen" :
@@ -70,18 +75,28 @@ public sealed class NpcAgent : MonoBehaviour
                     throw new InvalidOperationException("Assigned workplace warehouse must enable work tools.");
                 if (toolSourceWarehouse != null && (toolPickupPoint == null || workToolWarehouse == null))
                     throw new InvalidOperationException("Tool supply needs a workplace and market road point.");
+                if (socialMeeting == null)
+                    foreach (NpcSocialMeetingPlace place in FindObjectsByType<NpcSocialMeetingPlace>(
+                        FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                        if (place.Clock == clock) { socialMeeting = place; break; }
                 var navigation = new SceneNavigation(roadRoot, home, workplace, tavern, well,
                     deliveryJob != null ? deliveryJob.DeliveryPoint : null,
-                    deliveryJob != null ? deliveryJob.PickupPoint : null, toolPickupPoint);
+                    deliveryJob != null ? deliveryJob.PickupPoint : null, toolPickupPoint, socialMeeting);
                 simulation = new NpcSimulation(navigation, work, fatigue, supplies,
                     () => tavernWarehouse != null && tavernWarehouse.TryRemove("Lebensmittel", 1),
                     () => tavernWarehouse != null && tavernWarehouse.TryRemove("Getränke", 1),
                     deliveryJob, deliveryJob != null ? deliveryJob.Settings : null,
-                    workToolWarehouse != null ? new WorkEquipment(workToolWarehouse, toolSourceWarehouse) : null);
+                    workToolWarehouse != null ? new WorkEquipment(workToolWarehouse, toolSourceWarehouse) : null,
+                    socialMeeting != null ? socialMeeting.Venue : null,
+                    socialMeeting != null ? social : null);
             }
             // Initialization and re-enabling catch up from the same baseline; nothing is reset.
-            Advance(clock.TotalGameMinutes);
-            clock.TimeAdvanced += OnTimeAdvanced;
+            if (socialMeeting != null) socialMeeting.Register(this);
+            else
+            {
+                Advance(clock.TotalGameMinutes);
+                clock.TimeAdvanced += OnTimeAdvanced;
+            }
         }
         catch (Exception exception)
         {
@@ -92,6 +107,7 @@ public sealed class NpcAgent : MonoBehaviour
 
     private void OnDisable()
     {
+        if (socialMeeting != null && simulation != null) socialMeeting.Unregister(this);
         if (clock != null) clock.TimeAdvanced -= OnTimeAdvanced;
     }
 
@@ -108,6 +124,8 @@ public sealed class NpcAgent : MonoBehaviour
         simulation.AdvanceTo(targetMinutes, metresPerGameMinute);
         ApplyPose();
     }
+
+    public void ApplySimulationPose() => ApplyPose();
 
     private void ApplyPose()
     {
@@ -143,26 +161,31 @@ public sealed class NpcAgent : MonoBehaviour
     }
 
     /// <summary>Read-only adapter to the unchanged village road router.</summary>
-    private sealed class SceneNavigation : INpcNavigation
+    private sealed class SceneNavigation : INpcNavigation, INpcSocialNavigation
     {
         private readonly Transform roads;
         private readonly NpcPoint[] places;
+        private readonly NpcSocialMeetingPlace meeting;
+        public void SetSocialDestination(NpcPoint point) => places[(int)NpcPlace.Social] = point;
 
         public SceneNavigation(Transform roads, Transform home, Transform work, Transform tavern, Transform well,
-            Transform deliveryPoint = null, Transform pickupPoint = null, Transform toolPoint = null)
+            Transform deliveryPoint = null, Transform pickupPoint = null, Transform toolPoint = null, NpcSocialMeetingPlace meeting = null)
         {
             this.roads = roads;
+            this.meeting = meeting;
             places = new[] { ToPoint(home.position), ToPoint(work.position),
                 ToPoint(tavern.position), ToPoint(well.position),
                 ToPoint(deliveryPoint != null ? deliveryPoint.position : work.position),
                 ToPoint(pickupPoint != null ? pickupPoint.position : work.position),
-                ToPoint(toolPoint != null ? toolPoint.position : work.position) };
+                ToPoint(toolPoint != null ? toolPoint.position : work.position),
+                meeting != null ? meeting.Venue.Entrance : ToPoint(tavern.position) };
             // Fail at initialization if any required place is disconnected.
             foreach (NpcPlace place in Enum.GetValues(typeof(NpcPlace)))
             {
                 if (place == NpcPlace.Delivery && deliveryPoint == null) continue;
                 if (place == NpcPlace.Pickup && pickupPoint == null) continue;
                 if (place == NpcPlace.ToolPickup && toolPoint == null) continue;
+                if (place == NpcPlace.Social && meeting == null) continue;
                 FindRoute(places[0], place);
             }
         }
@@ -171,7 +194,9 @@ public sealed class NpcAgent : MonoBehaviour
 
         public NpcPoint[] FindRoute(NpcPoint from, NpcPlace destination)
         {
-            Vector3[] path = RoadRouter.FindRoute(roads, ToVector(from), ToVector(GetPlace(destination)));
+            Vector3[] path = meeting != null
+                ? meeting.FindRoute(roads, ToVector(from), ToVector(GetPlace(destination)), destination == NpcPlace.Social)
+                : RoadRouter.FindRoute(roads, ToVector(from), ToVector(GetPlace(destination)));
             var result = new NpcPoint[path.Length];
             for (int i = 0; i < path.Length; i++) result[i] = ToPoint(path[i]);
             return result;

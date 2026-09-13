@@ -3,7 +3,7 @@ using System;
 namespace Village.Npc
 {
     public enum NpcState { Home, GoingToWork, Working, GoingHome, Sleeping,
-        GoingToEat, Eating, GoingToDrink, Drinking, GoingToDeliver, Delivering, GoingToCollect, Collecting, GoingToGetTool, CollectingTool, ReturningWithTool, UnloadingTool }
+        GoingToEat, Eating, GoingToDrink, Drinking, GoingToDeliver, Delivering, GoingToCollect, Collecting, GoingToGetTool, CollectingTool, ReturningWithTool, UnloadingTool, GoingToSocial, WaitingForSocialPlace, WaitingForCompany, Socialising }
 
     [Serializable]
     public sealed class WorkSchedule

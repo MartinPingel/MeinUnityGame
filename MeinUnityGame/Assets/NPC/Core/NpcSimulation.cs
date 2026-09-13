@@ -125,7 +125,7 @@ namespace Village.Npc
             // Opt-in: leave home early enough to cover the existing road route.
             // Default false preserves the departure behavior of existing NPCs.
             commuteMinutes = work.commuteBeforeWork
-                ? Math.Min(RouteLength / metresPerGameMinute,
+                ? Math.Min(RouteLength / (metresPerGameMinute * TravelMultiplier(0)),
                     ((work.startHour - work.endHour + 24) % 24) * 60d) : 0d;
             // External stocks change even if this NPC's state repeats: never skip their consumption.
             var midnights = consumeFood == null && consumeDrink == null && deliveryInventory == null && workEquipment == null && targetMinutes - TotalMinutes >= 2880d
@@ -172,6 +172,7 @@ namespace Village.Npc
                 }
                 bool sleeping = State == NpcState.Sleeping;
                 bool travelling = route != null && nextPoint < route.Length;
+                double travelSpeed = metresPerGameMinute * TravelMultiplier(CargoQuantity);
                 bool eating = State == NpcState.Eating, drinking = State == NpcState.Drinking;
                 bool working = State == NpcState.Working && (workEquipment == null || workEquipment.CanWork);
                 // No wear while an input-dependent workplace is idle.
@@ -192,7 +193,7 @@ namespace Village.Npc
                 double waterIn = !seekingWater && supplies.hydrationLossPerHour > 0d
                     ? (Hydration - supplies.thirstThreshold) / (supplies.hydrationLossPerHour / 60d)
                     : double.PositiveInfinity;
-                double arrivalIn = travelling ? NpcPoint.Distance(Position, route[nextPoint]) / metresPerGameMinute
+                double arrivalIn = travelling ? NpcPoint.Distance(Position, route[nextPoint]) / travelSpeed
                     : double.PositiveInfinity;
                 step = Math.Min(step, Math.Min(Math.Min(energyIn, foodIn), Math.Min(waterIn, arrivalIn)));
                 if (eating || drinking) step = Math.Min(step, serviceRemaining);
@@ -223,7 +224,7 @@ namespace Village.Npc
                 {
                     NpcPoint to = route[nextPoint];
                     double length = NpcPoint.Distance(Position, to);
-                    double travelled = Math.Min(length, metresPerGameMinute * step);
+                    double travelled = Math.Min(length, travelSpeed * step);
                     Facing = new NpcPoint(to.X - Position.X, to.Y - Position.Y, to.Z - Position.Z);
                     Position = step == arrivalIn ? to : NpcPoint.Lerp(Position, to, travelled / length);
                     TravelledMetres += travelled;
@@ -247,6 +248,15 @@ namespace Village.Npc
             }
             TotalMinutes = targetMinutes;
             Decide();
+        }
+
+        private double TravelMultiplier(int cargo)
+        {
+            double multiplier = deliveryInventory is INpcTravelSpeed speed
+                ? speed.GetTravelSpeedMultiplier(cargo) : 1d;
+            if (double.IsNaN(multiplier) || double.IsInfinity(multiplier) || multiplier <= 0d)
+                throw new InvalidOperationException("Transport speed must be finite and positive.");
+            return multiplier;
         }
 
         private void Decide()

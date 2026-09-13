@@ -12,6 +12,7 @@ public sealed class MineProductionJob : WorkDeliveryJob, INpcProductionGate
     [SerializeField] private BuildingWarehouse smelterWarehouse;
     [SerializeField] private Transform smelterPoint;
     [SerializeField, Min(1)] private int deliveryQuantity = 10;
+    [SerializeField] private bool transportByWorker = true;
     [SerializeField, Range(0.1f, 3600f)] private float unitsPerWorkHour = 6f;
 
     private const string OreGoods = "Eisenerz";
@@ -41,8 +42,8 @@ public sealed class MineProductionJob : WorkDeliveryJob, INpcProductionGate
         catch (OverflowException) { return false; }
     }
 
-    public override bool HasBatch(int quantity) => mineWarehouse != null && mineWarehouse.Has(OreGoods, quantity);
-    public override bool TryPickUp(int quantity) => mineWarehouse != null && mineWarehouse.TryRemove(OreGoods, quantity);
+    public override bool HasBatch(int quantity) => transportByWorker && mineWarehouse != null && mineWarehouse.Has(OreGoods, quantity);
+    public override bool TryPickUp(int quantity) => transportByWorker && mineWarehouse != null && mineWarehouse.TryRemove(OreGoods, quantity);
     public override bool TryDeliver(int quantity)
     {
         if (smelterWarehouse == null) return false;

@@ -88,7 +88,10 @@ public sealed class NpcDebugDisplay : MonoBehaviour
                 if (model.WorkBlockedByTool) text += "Produktion pausiert: Werkzeug fehlt\n";
             }
             text += $"Arbeitszeit: {agent.WorkHours}\n";
-            if (model.CargoQuantity > 0) text += $"Lieferung: {model.CargoQuantity} {agent.CargoName}\n";
+            var wagon = agent.GetComponent<WagonDeliveryJob>();
+            if (wagon != null)
+                text += $"Wagenladung: {model.CargoQuantity} / {wagon.LoadCapacity} {wagon.CargoName}\nTempo: {wagon.GetTravelSpeedMultiplier(model.CargoQuantity).ToString("0.00", GermanNumbers)}×\n";
+            else if (model.CargoQuantity > 0) text += $"Lieferung: {model.CargoQuantity} {agent.CargoName}\n";
             text += $"Arbeitsstatus: {(model.State == NpcState.Working ? "Arbeitet" : model.IsWorkTime ? "Arbeitszeit, derzeit abwesend" : "Feierabend")}\n";
             text += $"Hungerbedarf: {(model.NeedsFood ? "Ja" : "Nein")}\n";
             text += $"Durstbedarf: {(model.NeedsDrink ? "Ja" : "Nein")}\n";
@@ -149,7 +152,7 @@ public sealed class NpcDebugDisplay : MonoBehaviour
             case NpcState.UnloadingTool: return "Lagert Werkzeug ein";
             case NpcState.Home: return "Freizeit (zuhause)";
             case NpcState.GoingToWork: return "Geht zur Arbeit";
-            case NpcState.Working: return "Arbeitet";
+            case NpcState.Working: return agent.GetComponent<WagonDeliveryJob>() != null ? "Wartet auf Erzladung" : "Arbeitet";
             case NpcState.GoingHome: return "Geht nach Hause";
             case NpcState.Sleeping: return "Schläft";
             case NpcState.GoingToEat: return "Geht zur Taverne";

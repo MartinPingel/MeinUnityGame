@@ -155,6 +155,9 @@ public sealed class NpcDebugDisplay : MonoBehaviour
             case NpcState.GoingToSocial: return "Geht zum Sozialkontakt";
             case NpcState.WaitingForSocialPlace: return "Wartet auf freien Aufenthaltsplatz";
             case NpcState.WaitingForCompany: return "Wartet auf Gesellschaft";
+            case NpcState.WaitingForService: return "Wartet auf Bedienung";
+            case NpcState.GoingToServicePickup: return "Holt Tavernenportion";
+            case NpcState.ServingGuest: return "Bringt Portion zum Gast";
             case NpcState.Socialising: return "Pflegt Sozialkontakt";
             case NpcState.Home: return "Freizeit (zuhause)";
             case NpcState.GoingToWork: return "Geht zur Arbeit";
@@ -174,3 +177,4 @@ public sealed class NpcDebugDisplay : MonoBehaviour
     }
 #endif
 }
+

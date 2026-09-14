@@ -48,6 +48,7 @@ public sealed class NpcAgent : MonoBehaviour
     public string CargoName => deliveryJob != null ? deliveryJob.CargoName : "Ware";
     public string WorkHours => $"{work.startHour:00}:00–{work.endHour:00}:00";
     public string TargetName => simulation == null ? "Nicht bereit" :
+        simulation.Target == NpcPlace.Service ? socialMeeting.ServiceTargetName :
         simulation.Target == NpcPlace.Social ? "Biergarten" :
         simulation.Target == NpcPlace.ToolPickup ? "Marktstand (Werkzeug)" :
         simulation.Target == NpcPlace.Tavern ? "Taverne" :
@@ -83,8 +84,8 @@ public sealed class NpcAgent : MonoBehaviour
                     deliveryJob != null ? deliveryJob.DeliveryPoint : null,
                     deliveryJob != null ? deliveryJob.PickupPoint : null, toolPickupPoint, socialMeeting);
                 simulation = new NpcSimulation(navigation, work, fatigue, supplies,
-                    () => tavernWarehouse != null && tavernWarehouse.TryRemove("Lebensmittel", 1),
-                    () => tavernWarehouse != null && tavernWarehouse.TryRemove("Getränke", 1),
+                    () => ConsumeTavernSupply(false),
+                    () => ConsumeTavernSupply(true),
                     deliveryJob, deliveryJob != null ? deliveryJob.Settings : null,
                     workToolWarehouse != null ? new WorkEquipment(workToolWarehouse, toolSourceWarehouse) : null,
                     socialMeeting != null ? socialMeeting.Venue : null,
@@ -104,6 +105,10 @@ public sealed class NpcAgent : MonoBehaviour
             enabled = false;
         }
     }
+
+    private bool ConsumeTavernSupply(bool drink) => socialMeeting != null
+        ? socialMeeting.Service.TryConsumeUnreserved(drink)
+        : tavernWarehouse != null && tavernWarehouse.TryRemove(drink ? "Getränke" : "Lebensmittel", 1);
 
     private void OnDisable()
     {
@@ -161,11 +166,12 @@ public sealed class NpcAgent : MonoBehaviour
     }
 
     /// <summary>Read-only adapter to the unchanged village road router.</summary>
-    private sealed class SceneNavigation : INpcNavigation, INpcSocialNavigation
+    private sealed class SceneNavigation : INpcNavigation, INpcSocialNavigation, INpcServiceNavigation
     {
         private readonly Transform roads;
         private readonly NpcPoint[] places;
         private readonly NpcSocialMeetingPlace meeting;
+        public void SetServiceDestination(NpcPoint point) => places[(int)NpcPlace.Service] = point;
         public void SetSocialDestination(NpcPoint point) => places[(int)NpcPlace.Social] = point;
 
         public SceneNavigation(Transform roads, Transform home, Transform work, Transform tavern, Transform well,
@@ -178,7 +184,7 @@ public sealed class NpcAgent : MonoBehaviour
                 ToPoint(deliveryPoint != null ? deliveryPoint.position : work.position),
                 ToPoint(pickupPoint != null ? pickupPoint.position : work.position),
                 ToPoint(toolPoint != null ? toolPoint.position : work.position),
-                meeting != null ? meeting.Venue.Entrance : ToPoint(tavern.position) };
+                meeting != null ? meeting.Venue.Entrance : ToPoint(tavern.position), ToPoint(tavern.position) };
             // Fail at initialization if any required place is disconnected.
             foreach (NpcPlace place in Enum.GetValues(typeof(NpcPlace)))
             {
@@ -195,7 +201,7 @@ public sealed class NpcAgent : MonoBehaviour
         public NpcPoint[] FindRoute(NpcPoint from, NpcPlace destination)
         {
             Vector3[] path = meeting != null
-                ? meeting.FindRoute(roads, ToVector(from), ToVector(GetPlace(destination)), destination == NpcPlace.Social)
+                ? meeting.FindRoute(roads, ToVector(from), ToVector(GetPlace(destination)), destination == NpcPlace.Social, destination == NpcPlace.Service)
                 : RoadRouter.FindRoute(roads, ToVector(from), ToVector(GetPlace(destination)));
             var result = new NpcPoint[path.Length];
             for (int i = 0; i < path.Length; i++) result[i] = ToPoint(path[i]);
@@ -203,3 +209,4 @@ public sealed class NpcAgent : MonoBehaviour
         }
     }
 }
+

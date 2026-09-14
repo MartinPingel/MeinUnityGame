@@ -21394,6 +21394,16 @@ MonoBehaviour:
   - {x: 34, y: 0.04, z: 108.9}
   - {x: 34, y: 0.04, z: 113.1}
   - {x: 24, y: 0.04, z: 108.9}
+  innkeeper: {fileID: 2700000005}
+  tavernWarehouse: {fileID: 3500000010}
+  serviceOffsets:
+  - -1.05
+  - 1.05
+  - -1.05
+  - 1.05
+  - -1.05
+  - 1.05
+  - -1.05
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

@@ -17,6 +17,7 @@ namespace Village.Npc
             public NpcSimulation.StepFrame Frame;
         }
         private readonly List<Member> members = new List<Member>();
+        public Action PrepareServices { get; set; }
         public double TotalMinutes { get; private set; }
         public void Add(NpcSimulation npc, Func<double> speed)
         {
@@ -35,6 +36,12 @@ namespace Village.Npc
         private void Prepare()
         {
             foreach (Member m in members) m.Npc.PrepareGroupStep(m.Speed());
+            if (PrepareServices != null)
+            {
+                PrepareServices();
+                // A handover may resolve a need; plan every NPC again before advancing time.
+                foreach (Member m in members) m.Npc.PrepareGroupStep(m.Speed());
+            }
             // Freeze attendance for this interval. Arrivals and departures are event boundaries.
             foreach (Member m in members)
             {
@@ -69,3 +76,4 @@ namespace Village.Npc
         }
     }
 }
+

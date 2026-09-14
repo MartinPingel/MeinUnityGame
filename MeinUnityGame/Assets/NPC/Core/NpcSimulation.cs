@@ -389,7 +389,7 @@ namespace Village.Npc
             {
                 // Drinking from an empty store cannot resolve thirst. Fetch its water first,
                 // while allowing food/rest to interrupt and never discarding a carried load.
-                if (seekingFood) SetGoal(AtSocialPlace ? NpcPlace.Social : NpcPlace.Tavern, NpcState.GoingToEat, NpcState.Eating);
+                if (seekingFood) SetSupplyGoal(false);
                 else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
                 else if (CargoQuantity > 0)
                     SetGoal(NpcPlace.Delivery, NpcState.GoingToDeliver, NpcState.Delivering);
@@ -397,8 +397,8 @@ namespace Village.Npc
                 else SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Home);
                 return;
             }
-            if (seekingWater) SetGoal(AtSocialPlace ? NpcPlace.Social : NpcPlace.Tavern, NpcState.GoingToDrink, NpcState.Drinking);
-            else if (seekingFood) SetGoal(AtSocialPlace ? NpcPlace.Social : NpcPlace.Tavern, NpcState.GoingToEat, NpcState.Eating);
+            if (seekingWater) SetSupplyGoal(true);
+            else if (seekingFood) SetSupplyGoal(false);
             else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
             else if (seekingSocial)
             {
@@ -409,6 +409,7 @@ namespace Village.Npc
                 SetGoal(NpcPlace.Social, NpcState.GoingToSocial,
                     socialSlot < 0 ? NpcState.WaitingForSocialPlace : NpcState.WaitingForCompany);
             }
+            else if (TavernService != null && TavernService.DirectWaiter(this)) { }
             else if (ToolCargoQuantity > 0)
             {
                 SetGoal(NpcPlace.Work, NpcState.ReturningWithTool, NpcState.UnloadingTool);
@@ -492,6 +493,37 @@ namespace Village.Npc
             return TotalMinutes >= start - commuteMinutes;
         }
 
+        internal NpcTavernService TavernService { get; set; }
+        internal NpcPoint TavernPoint => navigation.GetPlace(NpcPlace.Tavern);
+        internal bool CanServeTavern => work.IsWorkTime(TotalMinutes) &&
+            !seekingFood && !seekingWater && !seekingRest && !seekingSocial &&
+            CargoQuantity == 0 && ToolCargoQuantity == 0;
+        internal bool WantsSeatService(bool drink) => AtSocialPlace &&
+            State == NpcState.WaitingForService && (drink ? seekingWater : seekingFood);
+        internal void ReceiveSeatService(bool drink)
+        {
+            if (drink) { Hydration = 100d; seekingWater = false; DrinksCompleted++; }
+            else { Satiation = 100d; seekingFood = false; MealsCompleted++; }
+            State = NpcState.Home; // Reevaluate needs/social/work at this same event boundary.
+        }
+        internal void GoToService(NpcPoint point, bool carrying)
+        {
+            var serviceNavigation = navigation as INpcServiceNavigation;
+            if (serviceNavigation == null) throw new InvalidOperationException("Waiter needs service navigation.");
+            if (NpcPoint.Distance(navigation.GetPlace(NpcPlace.Service), point) > 0.001d) route = null;
+            serviceNavigation.SetServiceDestination(point);
+            SetGoal(NpcPlace.Service, carrying ? NpcState.ServingGuest : NpcState.GoingToServicePickup,
+                carrying ? NpcState.ServingGuest : NpcState.GoingToServicePickup);
+        }
+        private void SetSupplyGoal(bool drink)
+        {
+            bool seated = AtSocialPlace && (TavernService == null || !TavernService.IsWaiter(this));
+            SetGoal(seated ? NpcPlace.Social : NpcPlace.Tavern,
+                drink ? NpcState.GoingToDrink : NpcState.GoingToEat,
+                seated && TavernService != null ? NpcState.WaitingForService :
+                    drink ? NpcState.Drinking : NpcState.Eating);
+        }
+
         private bool AtSocialPlace => socialVenue != null && socialSlot >= 0 &&
             NpcPoint.Distance(Position, socialVenue.GetPlace(socialSlot)) < Epsilon;
 
@@ -552,4 +584,5 @@ namespace Village.Npc
         private struct Snapshot { public double time, worked, slept, travelled, meals, drinks; }
     }
 }
+
 

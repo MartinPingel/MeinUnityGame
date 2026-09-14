@@ -47,7 +47,7 @@ namespace Village.Npc
             {
                 int participants = 0;
                 foreach (Member other in members)
-                    if (other.Npc.SocialVenue == m.Npc.SocialVenue && other.Npc.SocialParticipant) participants++;
+                    if (other.Npc.SocialVenue == m.Npc.SocialVenue && other.Npc.IsPresentTavernGuest) participants++;
                 m.Npc.SetSocialContact(participants >= 2);
             }
         }

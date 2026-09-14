@@ -103,7 +103,8 @@ namespace Village.Npc
                 this.socialVenue = socialVenue;
                 this.socialSettings = new NpcSocialSettings { initialValue = socialSettings.initialValue,
                     lossPerHour = socialSettings.lossPerHour, needThreshold = socialSettings.needThreshold,
-                    recoveryPerHour = socialSettings.recoveryPerHour, satisfiedValue = socialSettings.satisfiedValue };
+                    recoveryPerHour = socialSettings.recoveryPerHour, satisfiedValue = socialSettings.satisfiedValue,
+                    aloneRecoveryMultiplier = socialSettings.aloneRecoveryMultiplier };
                 Social = socialSettings.initialValue;
             }
             if ((deliveryInventory == null) != (deliverySettings == null))
@@ -266,11 +267,14 @@ namespace Village.Npc
             step = Math.Min(step, Math.Min(Math.Min(energyIn, foodIn), Math.Min(waterIn, arrivalIn)));
             if (eating || drinking) step = Math.Min(step, serviceRemaining);
             bool hostContact = IsDoingInnkeeperWork && TavernService.HasPresentGuest;
-            bool socialising = socialVenue != null && (State == NpcState.Socialising || hostContact);
+            bool aloneAtSeat = !IsInnkeeper && seekingSocial && AtSocialPlace &&
+                State == NpcState.WaitingForCompany && SocialParticipant;
+            bool socialising = socialVenue != null && (State == NpcState.Socialising || hostContact || aloneAtSeat);
             double socialTarget = IsInnkeeper && !seekingSocial ? 100d
                 : socialSettings != null ? socialSettings.satisfiedValue : 100d;
             double socialRate = socialSettings == null ? 0d :
-                socialising ? (IsInnkeeper && Social >= socialTarget ? 0d : socialSettings.recoveryPerHour)
+                socialising ? (IsInnkeeper && Social >= socialTarget ? 0d : socialSettings.recoveryPerHour *
+                    (aloneAtSeat ? socialSettings.aloneRecoveryMultiplier : 1d))
                     : -socialSettings.lossPerHour;
             double socialIn = socialising ? (socialRate > 0d ? (socialTarget - Social) / (socialRate / 60d) : double.PositiveInfinity)
                 : socialSettings != null && !seekingSocial && socialSettings.lossPerHour > 0

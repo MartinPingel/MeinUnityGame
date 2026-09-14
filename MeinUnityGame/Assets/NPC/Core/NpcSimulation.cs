@@ -36,7 +36,15 @@ namespace Village.Npc
         public bool NeedsSocial => seekingSocial;
         public int SocialSlot => socialSlot;
         internal NpcSocialVenue SocialVenue => socialVenue;
-        internal bool SocialParticipant => socialSlot >= 0 &&
+        private bool IsInnkeeper => TavernService != null && TavernService.IsWaiter(this);
+        internal bool IsPresentTavernGuest => !IsInnkeeper &&
+            ((AtSocialPlace && (State == NpcState.WaitingForCompany || State == NpcState.Socialising ||
+                State == NpcState.WaitingForService)) ||
+             (socialVenue != null && State == NpcState.WaitingForSocialPlace &&
+                NpcPoint.Distance(Position, socialVenue.Entrance) < Epsilon));
+        internal bool IsDoingInnkeeperWork => IsInnkeeper && work.IsWorkTime(TotalMinutes) &&
+            (State == NpcState.Working || State == NpcState.GoingToServicePickup || State == NpcState.ServingGuest);
+        internal bool SocialParticipant => !IsInnkeeper && socialSlot >= 0 &&
             (State == NpcState.WaitingForCompany || State == NpcState.Socialising) &&
             !seekingFood && !seekingWater && !seekingRest;
 
@@ -210,6 +218,7 @@ namespace Village.Npc
             public bool socialising;
             public double socialRate;
             public double socialIn;
+            public double socialTarget;
         }
 
         internal StepFrame PlanStep(double targetMinutes, double metresPerGameMinute)
@@ -255,10 +264,14 @@ namespace Village.Npc
                 : double.PositiveInfinity;
             step = Math.Min(step, Math.Min(Math.Min(energyIn, foodIn), Math.Min(waterIn, arrivalIn)));
             if (eating || drinking) step = Math.Min(step, serviceRemaining);
-            bool socialising = socialVenue != null && State == NpcState.Socialising;
+            bool hostContact = IsDoingInnkeeperWork && TavernService.HasPresentGuest;
+            bool socialising = socialVenue != null && (State == NpcState.Socialising || hostContact);
+            double socialTarget = IsInnkeeper && !seekingSocial ? 100d
+                : socialSettings != null ? socialSettings.satisfiedValue : 100d;
             double socialRate = socialSettings == null ? 0d :
-                socialising ? socialSettings.recoveryPerHour : -socialSettings.lossPerHour;
-            double socialIn = socialising ? (socialSettings.satisfiedValue - Social) / (socialRate / 60d)
+                socialising ? (IsInnkeeper && Social >= socialTarget ? 0d : socialSettings.recoveryPerHour)
+                    : -socialSettings.lossPerHour;
+            double socialIn = socialising ? (socialRate > 0d ? (socialTarget - Social) / (socialRate / 60d) : double.PositiveInfinity)
                 : socialSettings != null && !seekingSocial && socialSettings.lossPerHour > 0
                     ? (Social - socialSettings.needThreshold) / (socialSettings.lossPerHour / 60d)
                     : double.PositiveInfinity;
@@ -273,7 +286,7 @@ namespace Village.Npc
                 working = working, wearing = wearing, producing = producing,
                 satiationRate = satiationRate, energyIn = energyIn, foodIn = foodIn,
                 waterIn = waterIn, arrivalIn = arrivalIn, socialising = socialising,
-                socialRate = socialRate, socialIn = socialIn
+                socialRate = socialRate, socialIn = socialIn, socialTarget = socialTarget
             };
         }
 
@@ -314,7 +327,8 @@ namespace Village.Npc
             if (socialSettings != null)
             {
                 Social = Clamp(Social + step * frame.socialRate / 60d);
-                if (step == frame.socialIn) Social = frame.socialising ? socialSettings.satisfiedValue : socialSettings.needThreshold;
+                if (step == frame.socialIn) Social = frame.socialising
+                    ? frame.socialTarget : socialSettings.needThreshold;
             }
             TotalMinutes += step;
         }
@@ -360,7 +374,7 @@ namespace Village.Npc
                 if (Social >= socialSettings.satisfiedValue - Epsilon) seekingSocial = false;
                 // Hunger/thirst reserve a bank place for the entire journey and service wait.
                 bool needsSupply = seekingFood || seekingWater;
-                if ((!seekingSocial && !needsSupply) || (seekingRest && !needsSupply)) ReleaseSocialPlace();
+                if (((!seekingSocial || IsInnkeeper) && !needsSupply) || (seekingRest && !needsSupply)) ReleaseSocialPlace();
             }
             // Water carried to the tavern is unloaded even when the arrival was a need detour.
             // This is opt-in: farm/smith deliveries retain their existing behavior.
@@ -387,7 +401,7 @@ namespace Village.Npc
             if (seekingWater) SetSupplyGoal(true);
             else if (seekingFood) SetSupplyGoal(false);
             else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
-            else if (seekingSocial)
+            else if (seekingSocial && !IsInnkeeper)
             {
                 int previousSlot = socialSlot;
                 socialSlot = socialVenue.Reserve(this);
@@ -483,7 +497,7 @@ namespace Village.Npc
         internal NpcTavernService TavernService { get; set; }
         internal NpcPoint TavernPoint => navigation.GetPlace(NpcPlace.Tavern);
         internal bool CanServeTavern => work.IsWorkTime(TotalMinutes) &&
-            !seekingFood && !seekingWater && !seekingRest && !seekingSocial &&
+            !seekingFood && !seekingWater && !seekingRest && (!seekingSocial || IsInnkeeper) &&
             CargoQuantity == 0 && ToolCargoQuantity == 0;
         internal bool WantsSeatService(bool drink) => AtSocialPlace &&
             State == NpcState.WaitingForService && (drink ? seekingWater : seekingFood);
@@ -589,6 +603,7 @@ namespace Village.Npc
         private struct Snapshot { public double time, worked, slept, travelled, meals, drinks; }
     }
 }
+
 
 
 

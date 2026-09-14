@@ -17,6 +17,16 @@ namespace Village.Npc
         public NpcSimulation Guest => guest;
         public bool HasReservedPortion => guest != null && pickedUp;
         public bool IsWaiter(NpcSimulation npc) => npc == waiter;
+        public bool HasPresentGuest
+        {
+            get
+            {
+                foreach (NpcSimulation npc in guests)
+                    if (npc != waiter && npc.IsPresentTavernGuest) return true;
+                return false;
+            }
+        }
+
 
         public NpcTavernService(Func<bool, int, bool> hasStock, Func<bool, bool> consume,
             Func<NpcSimulation, NpcPoint> servicePoint)
@@ -120,4 +130,5 @@ namespace Village.Npc
         void SetServiceDestination(NpcPoint point);
     }
 }
+
 

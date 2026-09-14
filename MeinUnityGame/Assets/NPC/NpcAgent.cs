@@ -161,11 +161,12 @@ public sealed class NpcAgent : MonoBehaviour
     }
 
     /// <summary>Read-only adapter to the unchanged village road router.</summary>
-    private sealed class SceneNavigation : INpcNavigation, INpcSocialNavigation, INpcServiceNavigation
+    private sealed class SceneNavigation : INpcNavigation, INpcSocialNavigation, INpcServiceNavigation, INpcRestockNavigation
     {
         private readonly Transform roads;
         private readonly NpcPoint[] places;
         private readonly NpcSocialMeetingPlace meeting;
+        public void SetRestockPickup(NpcPoint point) => places[(int)NpcPlace.Pickup] = point;
         public void SetServiceDestination(NpcPoint point) => places[(int)NpcPlace.Service] = point;
         public void SetSocialDestination(NpcPoint point) => places[(int)NpcPlace.Social] = point;
 

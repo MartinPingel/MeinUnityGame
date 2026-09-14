@@ -131,6 +131,7 @@ GameObject:
   - component: {fileID: 92927236}
   - component: {fileID: 92927235}
   - component: {fileID: 92927234}
+  - component: {fileID: 4900000010}
   m_Layer: 0
   m_Name: Brunnen
   m_TagString: Untagged
@@ -11824,6 +11825,7 @@ MonoBehaviour:
   - {fileID: 3500000010}
   warehousesWithDrinks:
   - {fileID: 3500000010}
+  - {fileID: 4900000010}
   trackedWarehouses:
   - warehouse: {fileID: 4000000010}
     goodsTypes:
@@ -11836,6 +11838,9 @@ MonoBehaviour:
     goodsTypes:
     - Eisen
     - Werkzeuge
+  - warehouse: {fileID: 4900000010}
+    goodsTypes:
+    - Getränke
   visible: 1
 --- !u!114 &3500000010
 MonoBehaviour:
@@ -22121,6 +22126,41 @@ Transform:
   m_Children: []
   m_Father: {fileID: 2200000031}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &4900000010
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 92927233}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3e86339c6814bef95b1841c72e92687, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  warehouseName: Brunnen (Wasservorrat)
+  initialStock: []
+--- !u!114 &3900000010
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2700000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1f6f8659a79b49b4b18c6ddb1b421998, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  tavernWarehouse: {fileID: 3500000010}
+  marketWarehouse: {fileID: 3500000000}
+  wellWarehouse: {fileID: 4900000010}
+  marketPoint: {fileID: 3400001001}
+  wellPoint: {fileID: 2220000091}
+  deliveryPoint: {fileID: 2220000051}
+  maximumFoodStock: 20
+  maximumWaterStock: 20
+  carryingCapacity: 40
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

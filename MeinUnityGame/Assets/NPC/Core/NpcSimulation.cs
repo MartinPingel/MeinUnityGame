@@ -420,9 +420,24 @@ namespace Village.Npc
                 else SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Home);
                 return;
             }
+            var restock = deliveryInventory as INpcPriorityRestock;
+            // Finish a retained load at the tavern, including arrival during a need detour.
+            if (restock != null && CargoQuantity > 0 &&
+                NpcPoint.Distance(Position, navigation.GetPlace(NpcPlace.Delivery)) < Epsilon &&
+                restock.TryDeliver(CargoQuantity))
+            {
+                DeliveredUnits += CargoQuantity;
+                CargoQuantity = 0;
+            }
+            // An empty store cannot resolve the carrier's own need: obtain real stock first.
+            if (restock != null && work.IsWorkTime(TotalMinutes) && !seekingRest &&
+                ((seekingWater && restock.IsTavernSupplyEmpty(true)) ||
+                 (!seekingWater && seekingFood && restock.IsTavernSupplyEmpty(false))) &&
+                TryRestock(seekingWater)) return;
             if (seekingWater) SetSupplyGoal(true);
             else if (seekingFood) SetSupplyGoal(false);
             else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
+            else if (restock != null && work.IsWorkTime(TotalMinutes) && TryRestock(null)) { }
             else if (seekingSocial && !IsInnkeeper)
             {
                 int previousSlot = socialSlot;
@@ -487,6 +502,35 @@ namespace Village.Npc
             else SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Home);
         }
 
+        private bool TryRestock(bool? preferredDrink)
+        {
+            var restock = (INpcPriorityRestock)deliveryInventory;
+            if (CargoQuantity > 0)
+            {
+                SetGoal(NpcPlace.Delivery, NpcState.GoingToDeliver, NpcState.Delivering);
+                if (State == NpcState.Delivering && restock.TryDeliver(CargoQuantity))
+                {
+                    DeliveredUnits += CargoQuantity;
+                    CargoQuantity = 0;
+                    Decide();
+                }
+                return true;
+            }
+            if (!restock.TrySelectSupply(preferredDrink, out NpcPoint pickup)) return false;
+            var restockNavigation = navigation as INpcRestockNavigation;
+            if (restockNavigation == null) throw new InvalidOperationException("Restocking needs selectable source navigation.");
+            if (NpcPoint.Distance(navigation.GetPlace(NpcPlace.Pickup), pickup) > 0.001d) route = null;
+            restockNavigation.SetRestockPickup(pickup);
+            SetGoal(NpcPlace.Pickup, NpcState.GoingToCollect, NpcState.Collecting);
+            if (State == NpcState.Collecting)
+            {
+                CargoQuantity = restock.TakeSelectedSupply();
+                if (CargoQuantity > 0) SetGoal(NpcPlace.Delivery, NpcState.GoingToDeliver, NpcState.Delivering);
+                else SetGoal(NpcPlace.Work, NpcState.GoingToWork, NpcState.Working);
+            }
+            return true;
+        }
+
         private void CollectWater()
         {
             // Start each new trip at the workplace; resume an uninterrupted outbound route.
@@ -520,7 +564,8 @@ namespace Village.Npc
         internal NpcPoint TavernPoint => navigation.GetPlace(NpcPlace.Tavern);
         internal bool CanServeTavern => work.IsWorkTime(TotalMinutes) &&
             !seekingFood && !seekingWater && !seekingRest && (!seekingSocial || IsInnkeeper) &&
-            CargoQuantity == 0 && ToolCargoQuantity == 0;
+            CargoQuantity == 0 && ToolCargoQuantity == 0 &&
+            !(deliveryInventory is INpcPriorityRestock restock && restock.HasAvailableSupply);
         internal bool WantsSeatService(bool drink) => AtSocialPlace &&
             State == NpcState.WaitingForService && (drink ? seekingWater : seekingFood);
         internal void ReceiveSeatService(bool drink)

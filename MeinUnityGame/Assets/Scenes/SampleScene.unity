@@ -22140,6 +22140,8 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   warehouseName: Brunnen (Wasservorrat)
   initialStock: []
+  permanentWaterSource: 1
+  maximumWaterStock: 100
 --- !u!114 &3900000010
 MonoBehaviour:
   m_ObjectHideFlags: 0

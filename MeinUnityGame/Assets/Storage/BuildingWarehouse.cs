@@ -12,6 +12,9 @@ namespace Village.Storage
         [Tooltip("Optional starting quantities. Configure before entering Play mode.")]
         [SerializeField] private List<InitialStock> initialStock = new List<InitialStock>();
         private WarehouseStock stock;
+        [Header("Permanent water source - enable only on the well")]
+        [SerializeField] private bool permanentWaterSource;
+        [SerializeField, Min(1)] private int maximumWaterStock = 100;
         [Header("Optional workplace tools - configure before Play")]
         [SerializeField] private bool requiresWorkTools;
         [SerializeField, Min(0.1f)] private float toolMaximumDurability = 100f;
@@ -43,9 +46,25 @@ namespace Village.Storage
                     foreach (InitialStock entry in initialStock)
                         initialized.Add(entry.goodsType, entry.quantity);
                     stock = initialized;
+                    if (permanentWaterSource)
+                    {
+                        stock.Changed += KeepWaterFull;
+                        KeepWaterFull();
+                    }
                 }
                 return stock;
             }
+        }
+
+        // WarehouseStock raises Changed synchronously: refill before a withdrawal returns.
+        // Only the well opts in; ordinary warehouses retain their exact finite-stock behavior.
+        private void KeepWaterFull()
+        {
+            int maximum = Math.Max(1, maximumWaterStock);
+            int current = stock.GetQuantity("Getränke");
+            if (current < maximum) stock.Add("Getränke", maximum - current);
+            else if (current > maximum) stock.TryRemove("Getränke", current - maximum);
+            // The nested notification observes equality, so no further mutation occurs.
         }
 
         [Serializable]

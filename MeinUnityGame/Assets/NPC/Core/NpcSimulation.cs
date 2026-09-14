@@ -45,7 +45,7 @@ namespace Village.Npc
                 NpcPoint.Distance(Position, socialVenue.Entrance) < Epsilon));
         internal bool IsDoingInnkeeperWork => IsInnkeeper && work.IsWorkTime(TotalMinutes) &&
             (State == NpcState.Working || State == NpcState.GoingToServicePickup || State == NpcState.ServingGuest);
-        internal bool SocialParticipant => !IsInnkeeper && socialSlot >= 0 &&
+        internal bool SocialParticipant => !IsInnkeeper && !work.IsWorkTime(TotalMinutes) && socialSlot >= 0 &&
             (State == NpcState.WaitingForCompany || State == NpcState.Socialising) &&
             !seekingFood && !seekingWater && !seekingRest;
 
@@ -400,7 +400,9 @@ namespace Village.Npc
                 if (Social >= socialSettings.satisfiedValue - Epsilon) seekingSocial = false;
                 // Hunger/thirst reserve a bank place for the entire journey and service wait.
                 bool needsSupply = seekingFood || seekingWater;
-                if (((!seekingSocial || IsInnkeeper) && !needsSupply) || (seekingRest && !needsSupply)) ReleaseSocialPlace();
+                // A pending social need survives the shift, but cannot retain a leisure seat.
+                if (((!seekingSocial || IsInnkeeper || work.IsWorkTime(TotalMinutes)) && !needsSupply) ||
+                    (seekingRest && !needsSupply)) ReleaseSocialPlace();
             }
             // Water carried to the tavern is unloaded even when the arrival was a need detour.
             // This is opt-in: farm/smith deliveries retain their existing behavior.
@@ -442,7 +444,7 @@ namespace Village.Npc
             else if (seekingFood) SetSupplyGoal(false);
             else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
             else if (restock != null && work.IsWorkTime(TotalMinutes) && TryRestock(null)) { }
-            else if (seekingSocial && !IsInnkeeper)
+            else if (seekingSocial && !IsInnkeeper && !work.IsWorkTime(TotalMinutes))
             {
                 int previousSlot = socialSlot;
                 socialSlot = socialVenue.Reserve(this);

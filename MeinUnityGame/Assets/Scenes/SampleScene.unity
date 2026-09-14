@@ -4314,7 +4314,8 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 30
+    recoveryPerHour: 60
+    aloneRecoveryMultiplier: 0.1
     satisfiedValue: 85
   work:
     startHour: 8
@@ -10465,7 +10466,8 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 30
+    recoveryPerHour: 60
+    aloneRecoveryMultiplier: 0.1
     satisfiedValue: 85
   work:
     startHour: 8
@@ -10637,7 +10639,8 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 30
+    recoveryPerHour: 60
+    aloneRecoveryMultiplier: 0.1
     satisfiedValue: 85
   work:
     startHour: 7
@@ -11776,7 +11779,8 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 30
+    recoveryPerHour: 60
+    aloneRecoveryMultiplier: 0.1
     satisfiedValue: 85
   work:
     startHour: 9
@@ -14553,7 +14557,8 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 30
+    recoveryPerHour: 60
+    aloneRecoveryMultiplier: 0.1
     satisfiedValue: 85
   work:
     startHour: 7
@@ -14780,7 +14785,8 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 30
+    recoveryPerHour: 60
+    aloneRecoveryMultiplier: 0.1
     satisfiedValue: 85
   work:
     startHour: 7
@@ -22321,7 +22327,8 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 30
+    recoveryPerHour: 60
+    aloneRecoveryMultiplier: 0.1
     satisfiedValue: 85
   work:
     startHour: 8
@@ -23187,7 +23194,8 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 30
+    recoveryPerHour: 60
+    aloneRecoveryMultiplier: 0.1
     satisfiedValue: 85
   work:
     startHour: 8
@@ -24053,7 +24061,8 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 30
+    recoveryPerHour: 60
+    aloneRecoveryMultiplier: 0.1
     satisfiedValue: 85
   work:
     startHour: 8

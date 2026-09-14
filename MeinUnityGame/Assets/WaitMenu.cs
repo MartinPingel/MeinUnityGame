@@ -163,13 +163,7 @@ public sealed class WaitMenu : MonoBehaviour
             Destroy(uiRoot);
     }
 
-    private static string FormatTime(double minutes)
-    {
-        int day = (int)System.Math.Floor(minutes / 1440d) + 1;
-        int hour = (int)(minutes % 1440d / 60d);
-        int minute = (int)(minutes % 60d);
-        return $"Tag {day} – {GameClock.GetWeekdayName(day)} – {hour:00}:{minute:00}";
-    }
+    private static string FormatTime(double minutes) => GameClock.FormatCalendarTime(minutes);
 
     private void BuildUI()
     {
@@ -212,11 +206,11 @@ public sealed class WaitMenu : MonoBehaviour
         scaler.referenceResolution = new Vector2(1280f, 720f);
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
 
-        RectTransform clockPanel = MakeRect("Clock", uiRoot.transform, 0f, 12f, 520f, 48f);
+        RectTransform clockPanel = MakeRect("Clock", uiRoot.transform, 0f, 12f, 800f, 48f);
         Image clockBackground = clockPanel.gameObject.AddComponent<Image>();
         clockBackground.color = new Color(0.04f, 0.05f, 0.07f, 0.96f);
         clockBackground.raycastTarget = false;
-        clockDisplay = MakeText("", clockPanel, 0f, 0f, 520f, 48f);
+        clockDisplay = MakeText("", clockPanel, 0f, 0f, 780f, 48f);
         clockDisplay.fontSize = 24;
         clockDisplay.fontStyle = FontStyle.Bold;
         RefreshClockDisplay();
@@ -247,7 +241,7 @@ public sealed class WaitMenu : MonoBehaviour
         hoursInput.text = "1";
         hoursInput.onValueChanged.AddListener(_ => RefreshPreview());
 
-        preview = MakeText("", panel.transform, 0f, 106f, 368f, 44f);
+        preview = MakeText("", panel.transform, 0f, 106f, 368f, 60f);
         waitButton = MakeButton("Warten", panel.transform, -96f, 174f, 176f, 36f, RequestWait);
         MakeButton("Abbrechen", panel.transform, 96f, 174f, 176f, 36f, Close);
         status = MakeText("", uiRoot.transform, 0f, 312f, 400f, 40f);
@@ -292,3 +286,4 @@ public sealed class WaitMenu : MonoBehaviour
         return button;
     }
 }
+

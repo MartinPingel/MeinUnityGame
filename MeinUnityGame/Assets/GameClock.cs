@@ -22,6 +22,58 @@ public sealed class GameClock : MonoBehaviour
         return WeekdayNames[(gameDay - 1) % 7];
     }
 
+    private static readonly string[] MonthNames =
+        { "Januar", "Februar", "März", "April", "Mai", "Juni",
+          "Juli", "August", "September", "Oktober", "November", "Dezember" };
+    private static readonly int[] MonthLengths = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    private const int DaysPerYear = 365; // Fixed calendar: February always has 28 days.
+
+    public readonly struct CalendarDate
+    {
+        public int Year { get; }
+        public int Month { get; }
+        public int Day { get; }
+        public string MonthName => MonthNames[Month - 1];
+        internal CalendarDate(int year, int month, int day)
+        { Year = year; Month = month; Day = day; }
+    }
+
+    /// <summary>Game day 1 is January 1, year 1. CurrentDay remains the absolute simulation day.</summary>
+    public CalendarDate CurrentDate => GetCalendarDate(CurrentDay);
+    public int CurrentYear => CurrentDate.Year;
+    public int CurrentMonth => CurrentDate.Month;
+    public int CurrentDayOfMonth => CurrentDate.Day;
+    public string CurrentMonthName => CurrentDate.MonthName;
+
+    /// <summary>Derives the date directly, including multi-year skips. Does not reset the weekday.</summary>
+    public static CalendarDate GetCalendarDate(int gameDay)
+    {
+        if (gameDay < 1) throw new ArgumentOutOfRangeException(nameof(gameDay));
+        int elapsedDays = gameDay - 1;
+        int year = elapsedDays / DaysPerYear + 1;
+        int dayOfYear = elapsedDays % DaysPerYear;
+        int month = 0;
+        while (dayOfYear >= MonthLengths[month])
+        {
+            dayOfYear -= MonthLengths[month];
+            month++;
+        }
+        return new CalendarDate(year, month + 1, dayOfYear + 1);
+    }
+
+    /// <summary>Shared by the live clock, wait preview and NPC debug time display.</summary>
+    public static string FormatCalendarTime(double totalMinutes)
+    {
+        if (double.IsNaN(totalMinutes) || double.IsInfinity(totalMinutes) ||
+            totalMinutes < 0d || totalMinutes >= MaxTotalMinutes)
+            throw new ArgumentOutOfRangeException(nameof(totalMinutes));
+        int gameDay = (int)Math.Floor(totalMinutes / MinutesPerDay) + 1;
+        CalendarDate date = GetCalendarDate(gameDay);
+        int hour = (int)(totalMinutes % MinutesPerDay / 60d);
+        int minute = (int)(totalMinutes % 60d);
+        return $"Tag {date.Day} – {date.MonthName} – Jahr {date.Year} – {GetWeekdayName(gameDay)} – {hour:00}:{minute:00}";
+    }
+
     private const double MinutesPerDay = 24d * 60d;
     private const double MaxTotalMinutes = (double)int.MaxValue * MinutesPerDay;
 
@@ -169,3 +221,4 @@ public sealed class GameClock : MonoBehaviour
         startMinute = Mathf.Clamp(startMinute, 0, 59);
     }
 }
+

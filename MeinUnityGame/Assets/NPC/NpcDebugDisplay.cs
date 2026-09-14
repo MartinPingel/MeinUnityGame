@@ -65,7 +65,7 @@ public sealed class NpcDebugDisplay : MonoBehaviour
         NpcSimulation model = agent.Simulation;
         string text = $"{agent.NpcName} – {agent.Profession}\n";
         if (agent.Clock != null)
-            text += $"Tag {agent.Clock.CurrentDay} – {agent.Clock.CurrentWeekdayName} – {agent.Clock.CurrentHour:00}:{agent.Clock.CurrentMinute:00}\n";
+            text += GameClock.FormatCalendarTime(agent.Clock.TotalGameMinutes) + "\n";
         else
             text += "GameClock nicht zugewiesen.\n";
 
@@ -177,4 +177,5 @@ public sealed class NpcDebugDisplay : MonoBehaviour
     }
 #endif
 }
+
 

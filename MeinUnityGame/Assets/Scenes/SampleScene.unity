@@ -25009,6 +25009,23 @@ MonoBehaviour:
   orePerCycle: 2
   ironPerCycle: 1
   workMinutesPerCycle: 20
+--- !u!114 &4200000020
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3400000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 313cf8eec3df4b48aa1f3fcee046e523, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  smithWarehouse: {fileID: 3500000030}
+  marketWarehouse: {fileID: 3500000000}
+  pickupPoint: {fileID: 3000001001}
+  deliveryPoint: {fileID: 3400001001}
+  deliveryQuantity: 2
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

@@ -11857,9 +11857,9 @@ MonoBehaviour:
   warehouseName: Taverne
   initialStock:
   - goodsType: Lebensmittel
-    quantity: 20
+    quantity: 10
   - goodsType: Getränke
-    quantity: 20
+    quantity: 10
 --- !u!114 &3500000020
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -22160,8 +22160,8 @@ MonoBehaviour:
   marketPoint: {fileID: 3400001001}
   wellPoint: {fileID: 2220000091}
   deliveryPoint: {fileID: 2220000051}
-  maximumFoodStock: 20
-  maximumWaterStock: 20
+  maximumFoodStock: 50
+  maximumWaterStock: 50
   carryingCapacity: 40
 --- !u!1660057539 &9223372036854775807
 SceneRoots:

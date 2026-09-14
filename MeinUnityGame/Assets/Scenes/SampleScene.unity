@@ -24883,6 +24883,42 @@ Transform:
   m_Children: []
   m_Father: {fileID: 2200000021}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &4000000010
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2900000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3e86339c6814bef95b1841c72e92687, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  warehouseName: Mine
+  initialStock: []
+  requiresWorkTools: 1
+  toolMaximumDurability: 100
+  toolWearPerWorkHour: 10
+--- !u!114 &4100000010
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2900000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef9e98bb56cf40f3992713dbf518de0e, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  mineWarehouse: {fileID: 4000000010}
+  workPoint: {fileID: 2900001001}
+  unitsPerWorkHour: 6
+  smelterWarehouse: {fileID: 3600000020}
+  smelterPoint: {fileID: 3600001001}
+  deliveryQuantity: 10
+  transportByWorker: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

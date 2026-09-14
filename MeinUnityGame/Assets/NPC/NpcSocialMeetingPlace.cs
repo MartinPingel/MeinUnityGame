@@ -159,16 +159,21 @@ public sealed class NpcSocialMeetingPlace : MonoBehaviour
         Vector3 entry = roadEntrance.position;
         bool local = ExitLocal(from, route);
         int serviceIndex = -1;
+        bool ownSeat = false;
         if (serviceDestination)
             for (int i = 0; i < places.Length; i++)
+            {
                 if (Vector3.Distance(ServicePosition(i), destination) < 0.001f) { serviceIndex = i; break; }
+                if (Vector3.Distance(places[i].position, destination) < 0.001f)
+                { serviceIndex = i; ownSeat = true; break; }
+            }
         if ((socialDestination && Vector3.Distance(destination, entry) >= 0.001f) || serviceIndex >= 0)
         {
             if (!local) route.AddRange(RoadRouter.FindRoute(roads, from, entry));
             int index = serviceIndex >= 0 ? serviceIndex :
                 Array.FindIndex(places, p => Vector3.Distance(p.position, destination) < 0.001f);
             if (index < 0) throw new InvalidOperationException("Unknown beer garden seat.");
-            route.AddRange(LocalPath(index, serviceIndex >= 0));
+            route.AddRange(LocalPath(index, serviceIndex >= 0 && !ownSeat));
         }
         else route.AddRange(RoadRouter.FindRoute(roads, local ? entry : from, destination));
         // Road and local segments share endpoints.
@@ -177,5 +182,6 @@ public sealed class NpcSocialMeetingPlace : MonoBehaviour
         return route.ToArray();
     }
 }
+
 
 

@@ -309,20 +309,8 @@ namespace Village.Npc
                 TravelledMetres += travelled;
                 if (step == frame.arrivalIn) nextPoint++;
             }
-            if (frame.eating || frame.drinking)
-            {
-                serviceRemaining -= step;
-                if (serviceRemaining <= Epsilon)
-                {
-                    if (frame.eating && (consumeFood == null || consumeFood()))
-                    { Satiation = 100d; seekingFood = false; MealsCompleted++; }
-                    if (frame.drinking && (consumeDrink == null || consumeDrink()))
-                    { Hydration = 100d; seekingWater = false; DrinksCompleted++; }
-                    // Empty stock grants nothing; the need stays active and service can retry.
-                    serviceRemaining = 0d;
-                    State = NpcState.Home; // Neutral until Decide re-evaluates current priorities.
-                }
-            }
+            // Hunger/thirst are improved only by a physical tavern-service handover.
+            // Merely arriving or waiting never consumes stock or completes a meal.
             if (socialSettings != null)
             {
                 Social = Clamp(Social + step * frame.socialRate / 60d);
@@ -370,10 +358,9 @@ namespace Village.Npc
             {
                 if (Social <= socialSettings.needThreshold + Epsilon) seekingSocial = true;
                 if (Social >= socialSettings.satisfiedValue - Epsilon) seekingSocial = false;
-                // A meal/drink at an occupied bank place keeps that exclusive reservation.
-                bool seatedSupply = AtSocialPlace && (seekingFood || seekingWater);
-                if ((!seekingSocial && !seatedSupply) || seekingRest ||
-                    ((seekingFood || seekingWater) && !seatedSupply)) ReleaseSocialPlace();
+                // Hunger/thirst reserve a bank place for the entire journey and service wait.
+                bool needsSupply = seekingFood || seekingWater;
+                if ((!seekingSocial && !needsSupply) || (seekingRest && !needsSupply)) ReleaseSocialPlace();
             }
             // Water carried to the tavern is unloaded even when the arrival was a need detour.
             // This is opt-in: farm/smith deliveries retain their existing behavior.
@@ -515,13 +502,29 @@ namespace Village.Npc
             SetGoal(NpcPlace.Service, carrying ? NpcState.ServingGuest : NpcState.GoingToServicePickup,
                 carrying ? NpcState.ServingGuest : NpcState.GoingToServicePickup);
         }
+        internal NpcPoint ReservedSupplySeat => socialVenue.GetPlace(socialSlot);
+        internal bool HasSupplyReservation(bool drink) => socialSlot >= 0 &&
+            (drink ? seekingWater : seekingFood);
+
         private void SetSupplyGoal(bool drink)
         {
-            bool seated = AtSocialPlace && (TavernService == null || !TavernService.IsWaiter(this));
-            SetGoal(seated ? NpcPlace.Social : NpcPlace.Tavern,
-                drink ? NpcState.GoingToDrink : NpcState.GoingToEat,
-                seated && TavernService != null ? NpcState.WaitingForService :
-                    drink ? NpcState.Drinking : NpcState.Eating);
+            // Only the innkeeper may leave his reserved place to collect his own portion.
+            if (TavernService != null && TavernService.IsOwnOrder(this) &&
+                TavernService.DirectWaiter(this)) return;
+            if (socialVenue == null)
+            {
+                // Fail closed for an unconfigured NPC: never fall back to tavern self-feeding.
+                route = null;
+                Target = NpcPlace.Social;
+                State = NpcState.WaitingForSocialPlace;
+                return;
+            }
+            int previousSlot = socialSlot;
+            socialSlot = socialVenue.Reserve(this);
+            if (socialSlot != previousSlot) route = null;
+            ((INpcSocialNavigation)navigation).SetSocialDestination(socialVenue.GetPlace(socialSlot));
+            SetGoal(NpcPlace.Social, drink ? NpcState.GoingToDrink : NpcState.GoingToEat,
+                socialSlot < 0 ? NpcState.WaitingForSocialPlace : NpcState.WaitingForService);
         }
 
         private bool AtSocialPlace => socialVenue != null && socialSlot >= 0 &&
@@ -529,7 +532,9 @@ namespace Village.Npc
 
         private void SetGoal(NpcPlace destination, NpcState travellingState, NpcState arrivalState)
         {
-            if (destination != NpcPlace.Social && socialSlot >= 0) ReleaseSocialPlace();
+            if (destination != NpcPlace.Social && socialSlot >= 0 &&
+                !(destination == NpcPlace.Service && TavernService != null && TavernService.IsOwnOrder(this)))
+                ReleaseSocialPlace();
             if (NpcPoint.Distance(Position, navigation.GetPlace(destination)) < Epsilon)
             {
                 Position = navigation.GetPlace(destination);
@@ -584,5 +589,6 @@ namespace Village.Npc
         private struct Snapshot { public double time, worked, slept, travelled, meals, drinks; }
     }
 }
+
 
 

@@ -19,7 +19,7 @@ public sealed class TavernServiceTests
         public readonly NpcTavernService Service;
         public readonly NpcSimulationGroup Group = new NpcSimulationGroup();
         public readonly NpcSimulation Guest, Waiter;
-        public World(bool drink = false, int stock = 1, double waiterHunger = 0)
+        public World(bool drink = false, int stock = 1, double waiterHunger = 0, double guestSocial = 30)
         {
             Food = Water = stock;
             var venue = new NpcSocialVenue(new NpcPoint(50, 0, 0),
@@ -30,7 +30,7 @@ public sealed class TavernServiceTests
                 guest => new NpcPoint(guest.Position.X + 1.05, 0, 0));
             Guest = Create(venue, new SupplySettings {
                 initialSatiation = drink ? 100 : 21, initialHydration = drink ? 21 : 100,
-                satiationLossPerHour = drink ? 0 : 60, hydrationLossPerHour = drink ? 60 : 0 }, 30);
+                satiationLossPerHour = drink ? 0 : 60, hydrationLossPerHour = drink ? 60 : 0 }, guestSocial);
             Waiter = Create(venue, new SupplySettings {
                 initialSatiation = waiterHunger > 0 ? 22 : 100,
                 satiationLossPerHour = waiterHunger, hydrationLossPerHour = 0,
@@ -42,7 +42,8 @@ public sealed class TavernServiceTests
         private NpcSimulation Create(NpcSocialVenue venue, SupplySettings needs, double social) =>
             new NpcSimulation(new Navigation(), new WorkSchedule { startHour = 0, endHour = 23 },
                 new FatigueSettings { initialFatigue = 0, gainPerAwakeHour = 0.1 }, needs,
-                () => Service.TryConsumeUnreserved(false), () => Service.TryConsumeUnreserved(true),
+                () => throw new InvalidOperationException("Legacy food consumption must not run."),
+                () => throw new InvalidOperationException("Legacy drink consumption must not run."),
                 null, null, null, venue, new NpcSocialSettings { initialValue = social,
                     lossPerHour = 0, needThreshold = 35, satisfiedValue = 85, recoveryPerHour = 30 });
     }
@@ -56,7 +57,6 @@ public sealed class TavernServiceTests
         Assert.That(w.Guest.State, Is.EqualTo(NpcState.WaitingForService));
         Assert.That(w.Service.HasReservedPortion, Is.True);
         Assert.That(drink ? w.Water : w.Food, Is.EqualTo(1));
-        Assert.That(w.Service.TryConsumeUnreserved(drink), Is.False);
         w.Group.AdvanceTo(10);
         Assert.That(drink ? w.Guest.Hydration : w.Guest.Satiation, Is.LessThanOrEqualTo(20));
         Assert.That(drink ? w.Water : w.Food, Is.EqualTo(1));
@@ -91,31 +91,44 @@ public sealed class TavernServiceTests
     }
 
     [Test]
-    public void WaitersHungerInterruptsTripAndReservationSurvives()
+    public void WaiterMustCarryHisOwnPortionBackToHisReservedBankPlace()
     {
-        var w = new World(stock: 2, waiterHunger: 60);
+        var w = new World(stock: 1, waiterHunger: 60);
         w.Group.AdvanceTo(2);
         Assert.That(w.Waiter.NeedsFood, Is.True);
+        Assert.That(w.Waiter.Target, Is.EqualTo(NpcPlace.Social));
+        Assert.That(w.Waiter.SocialSlot, Is.GreaterThanOrEqualTo(0));
+        Assert.That(w.Waiter.MealsCompleted, Is.Zero);
+        w.Group.AdvanceTo(23); // Reaches the warehouse after visiting his own place.
+        Assert.That(w.Waiter.Position.X, Is.EqualTo(0).Within(1e-6));
         Assert.That(w.Service.HasReservedPortion, Is.True);
-        Assert.That(w.Guest.MealsCompleted, Is.Zero);
-        w.Group.AdvanceTo(4);
-        Assert.That(w.Waiter.MealsCompleted, Is.EqualTo(1));
+        Assert.That(w.Waiter.MealsCompleted, Is.Zero);
         Assert.That(w.Food, Is.EqualTo(1));
-        Assert.That(w.Service.HasReservedPortion, Is.True);
-        w.Group.AdvanceTo(15);
-        Assert.That(w.Guest.MealsCompleted, Is.EqualTo(1));
+        w.Group.AdvanceTo(34); // Physically back at bank place x=110.
+        Assert.That(w.Waiter.Position.X, Is.EqualTo(110).Within(1e-6));
+        Assert.That(w.Waiter.MealsCompleted, Is.EqualTo(1));
+        Assert.That(w.Waiter.Satiation, Is.EqualTo(100).Within(1e-6));
+        Assert.That(w.Guest.MealsCompleted, Is.Zero);
         Assert.That(w.Food, Is.Zero);
     }
 
-    [Test]
-    public void LastPortionDoesNotDeadlockWaitersOwnUrgentHunger()
+    [TestCase(false)]
+    [TestCase(true)]
+    public void HungerAndThirstGoDirectlyToBankEvenWithoutSocialNeed(bool drink)
     {
-        var w = new World(stock: 1, waiterHunger: 60);
-        w.Group.AdvanceTo(4);
-        Assert.That(w.Waiter.MealsCompleted, Is.EqualTo(1));
-        Assert.That(w.Guest.MealsCompleted, Is.Zero);
-        Assert.That(w.Food, Is.Zero);
-        Assert.That(w.Service.HasReservedPortion, Is.False);
+        var w = new World(drink, guestSocial: 100);
+        w.Group.AdvanceTo(1);
+        Assert.That(w.Guest.NeedsSocial, Is.False);
+        Assert.That(w.Guest.Target, Is.EqualTo(NpcPlace.Social));
+        Assert.That(w.Guest.SocialSlot, Is.GreaterThanOrEqualTo(0));
+        Assert.That(w.Guest.State, Is.EqualTo(drink ? NpcState.GoingToDrink : NpcState.GoingToEat));
+        w.Group.AdvanceTo(1.1);
+        Assert.That(w.Guest.Position.X, Is.EqualTo(100).Within(1e-6));
+        Assert.That(w.Guest.State, Is.EqualTo(NpcState.WaitingForService));
+        w.Group.AdvanceTo(11.205);
+        Assert.That(drink ? w.Guest.DrinksCompleted : w.Guest.MealsCompleted, Is.EqualTo(1));
+        Assert.That(w.Guest.SocialSlot, Is.EqualTo(-1)); // Returns to normal work after service.
+        Assert.That(drink ? w.Water : w.Food, Is.Zero);
     }
 
     [Test]
@@ -131,3 +144,4 @@ public sealed class TavernServiceTests
         Assert.That(jump.Waiter.Position.X, Is.EqualTo(tick.Waiter.Position.X).Within(1e-5));
     }
 }
+

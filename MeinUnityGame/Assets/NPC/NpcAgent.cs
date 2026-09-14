@@ -84,8 +84,7 @@ public sealed class NpcAgent : MonoBehaviour
                     deliveryJob != null ? deliveryJob.DeliveryPoint : null,
                     deliveryJob != null ? deliveryJob.PickupPoint : null, toolPickupPoint, socialMeeting);
                 simulation = new NpcSimulation(navigation, work, fatigue, supplies,
-                    () => ConsumeTavernSupply(false),
-                    () => ConsumeTavernSupply(true),
+                    null, null, // Stock is consumed only by NpcTavernService at handover.
                     deliveryJob, deliveryJob != null ? deliveryJob.Settings : null,
                     workToolWarehouse != null ? new WorkEquipment(workToolWarehouse, toolSourceWarehouse) : null,
                     socialMeeting != null ? socialMeeting.Venue : null,
@@ -105,10 +104,6 @@ public sealed class NpcAgent : MonoBehaviour
             enabled = false;
         }
     }
-
-    private bool ConsumeTavernSupply(bool drink) => socialMeeting != null
-        ? socialMeeting.Service.TryConsumeUnreserved(drink)
-        : tavernWarehouse != null && tavernWarehouse.TryRemove(drink ? "Getränke" : "Lebensmittel", 1);
 
     private void OnDisable()
     {
@@ -209,4 +204,5 @@ public sealed class NpcAgent : MonoBehaviour
         }
     }
 }
+
 

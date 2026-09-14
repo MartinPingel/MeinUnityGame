@@ -97,15 +97,15 @@ public sealed class SocialNeedTests
         Assert.That(a.Position.X, Is.EqualTo(100));
         group.AdvanceTo(10);
         Assert.That(b.Social, Is.EqualTo(value).Within(1e-6));
-        Assert.That(a.State, Is.EqualTo(NpcState.Eating));
+        Assert.That(a.State, Is.EqualTo(NpcState.WaitingForService));
     }
 
     [TestCase(false)]
     [TestCase(true)]
-    public void BankSupplyUsesExistingStockAndKeepsExclusivePlace(bool drinking)
+    public void NoWaiterMeansNoAutomaticBankConsumption(bool drinking)
     {
-        int stock = 1;
-        System.Func<bool> consume = () => { if (stock == 0) return false; stock--; return true; };
+        int attempts = 0;
+        System.Func<bool> consume = () => { attempts++; return true; };
         var venue = Venue();
         var a = Npc(venue, needs: new SupplySettings {
             initialSatiation = drinking ? 100 : 21, initialHydration = drinking ? 21 : 100,
@@ -116,18 +116,13 @@ public sealed class SocialNeedTests
         int slot = a.SocialSlot;
         Assert.That(slot, Is.GreaterThanOrEqualTo(0));
         Assert.That(a.Target, Is.EqualTo(NpcPlace.Social));
-        Assert.That(a.State, Is.EqualTo(drinking ? NpcState.Drinking : NpcState.Eating));
-        Assert.That(stock, Is.EqualTo(1));
-        group.AdvanceTo(3);
-        Assert.That(stock, Is.Zero);
-        Assert.That(drinking ? a.Hydration : a.Satiation, Is.EqualTo(100).Within(1e-6));
+        Assert.That(a.State, Is.EqualTo(NpcState.WaitingForService));
+        group.AdvanceTo(86);
+        Assert.That(attempts, Is.Zero);
+        Assert.That(drinking ? a.DrinksCompleted : a.MealsCompleted, Is.Zero);
+        Assert.That(drinking ? a.Hydration : a.Satiation, Is.Zero);
         Assert.That(a.SocialSlot, Is.EqualTo(slot));
-        Assert.That(a.Social, Is.EqualTo(30)); // Alone, including during service.
-        Assert.That(a.State, Is.EqualTo(NpcState.WaitingForCompany));
-        group.AdvanceTo(86); // Second service attempt has no stock.
-        Assert.That(drinking ? a.Hydration : a.Satiation, Is.LessThanOrEqualTo(20));
-        Assert.That(drinking ? a.NeedsDrink : a.NeedsFood, Is.True);
-        Assert.That(a.SocialSlot, Is.EqualTo(slot));
+        Assert.That(a.Social, Is.EqualTo(30));
     }
 
     [Test]
@@ -175,4 +170,5 @@ public sealed class SocialNeedTests
         Assert.That(a.Energy, Is.EqualTo(c.Energy).Within(1e-5));
     }
 }
+
 

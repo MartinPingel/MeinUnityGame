@@ -42,28 +42,40 @@ namespace Village.Npc
             if (npc == waiter) waiter = null;
             npc.TavernService = null;
         }
-        // Ordinary tavern consumers cannot take the portion already carried to a guest.
-        // The warehouse total is decremented exactly once, at handover, as requested.
-        public bool TryConsumeUnreserved(bool isDrink) =>
-            hasStock(isDrink, HasReservedPortion && drink == isDrink ? 2 : 1) && consume(isDrink);
+        public bool IsOwnOrder(NpcSimulation npc) => npc == waiter && guest == waiter;
+        private bool CanContinueOrder => waiter != null &&
+            (guest == waiter ? waiter.HasSupplyReservation(drink) : waiter.CanServeTavern);
+        private NpcPoint HandoverPoint(NpcSimulation npc) => npc == waiter
+            ? npc.ReservedSupplySeat : servicePoint(npc);
 
         private void Cancel() { guest = null; pickedUp = false; }
         public bool DirectWaiter(NpcSimulation npc)
         {
-            if (npc != waiter || guest == null || !npc.CanServeTavern) return false;
+            if (npc != waiter || guest == null || !CanContinueOrder) return false;
             npc.GoToService(pickedUp ? destination : npc.TavernPoint, pickedUp);
             return true;
         }
         // Called after every shared event boundary, including all skipped-time travel arrivals.
         public void Update()
         {
-            if (guest != null && (!guest.WantsSeatService(drink) ||
-                NpcPoint.Distance(servicePoint(guest), destination) > 0.001d)) Cancel();
-            // Do not let the last reserved portion deadlock the waiter's own urgent need.
-            // Cancelling returns its availability; no stock has been consumed or lost.
-            if (HasReservedPortion && waiter != null &&
-                (drink ? waiter.NeedsDrink : waiter.NeedsFood) && !hasStock(drink, 2)) Cancel();
-            if (waiter == null || !waiter.CanServeTavern) return;
+            if (guest != null && (!(guest == waiter ? guest.HasSupplyReservation(drink) : guest.WantsSeatService(drink)) ||
+                NpcPoint.Distance(HandoverPoint(guest), destination) > 0.001d)) Cancel();
+            if (guest != null && !drink && guest.NeedsDrink) Cancel();
+            if (waiter == null) return;
+            // The innkeeper's own hunger/thirst retains priority. Return any guest reservation
+            // to availability, then collect one portion and carry it back to his own bank place.
+            if (waiter.NeedsDrink || waiter.NeedsFood)
+            {
+                if (guest != null && guest != waiter) Cancel();
+                if (guest == null)
+                {
+                    bool ownDrink = waiter.NeedsDrink;
+                    if (!waiter.WantsSeatService(ownDrink) || !hasStock(ownDrink, 1)) return;
+                    guest = waiter; drink = ownDrink; pickedUp = false;
+                    destination = HandoverPoint(waiter);
+                }
+            }
+            else if (!waiter.CanServeTavern) return;
             if (guest == null)
             {
                 for (int i = 0; i < guests.Count; i++)
@@ -77,7 +89,7 @@ namespace Village.Npc
                     // Preserve thirst priority; do not serve a meal in place of a missing drink.
                     if (!hasStock(thirsty, 1)) continue;
                     guest = candidate; drink = thirsty; pickedUp = false;
-                    destination = servicePoint(candidate);
+                    destination = HandoverPoint(candidate);
                     nextGuest = (index + 1) % guests.Count;
                     break;
                 }
@@ -91,7 +103,10 @@ namespace Village.Npc
             if (pickedUp && NpcPoint.Distance(waiter.Position, destination) < 0.000001d &&
                 NpcPoint.Distance(waiter.Position, guest.Position) <= 1.1d)
             {
-                if (guest.WantsSeatService(drink) && hasStock(drink, 1) && consume(drink))
+                bool atGuestSeat = guest == waiter
+                    ? guest.HasSupplyReservation(drink) && NpcPoint.Distance(guest.Position, guest.ReservedSupplySeat) < 0.000001d
+                    : guest.WantsSeatService(drink);
+                if (atGuestSeat && hasStock(drink, 1) && consume(drink))
                     guest.ReceiveSeatService(drink);
                 Cancel();
                 return;
@@ -105,3 +120,4 @@ namespace Village.Npc
         void SetServiceDestination(NpcPoint point);
     }
 }
+

@@ -55,7 +55,7 @@ namespace Village.Storage
             GUI.DrawTexture(panel, Texture2D.whiteTexture);
             GUI.color = Color.white;
             GUILayout.BeginArea(new Rect(panel.x + 12f, panel.y + 10f, panel.width - 24f, panel.height - 20f));
-            GUILayout.Label("Gebäude-Warenlager", textStyle);
+            GUILayout.Label("Werkzeugzustand", textStyle);
             GUILayout.Label("F5: Anzeige ein/aus", textStyle);
             scroll = GUILayout.BeginScrollView(scroll);
             foreach (StockWatch watch in trackedWarehouses)
@@ -72,35 +72,15 @@ namespace Village.Storage
         }
         private void DrawWarehouse(BuildingWarehouse target, string[] trackedGoods = null)
         {
-            GUILayout.Label(target.WarehouseName, textStyle);
             WorkplaceTools tools = target.Tools;
+            if (tools == null) return;
+            GUILayout.Label(target.WarehouseName, textStyle);
             if (tools != null)
             {
-                GUILayout.Label("Werkzeugbestand: " + tools.Quantity, textStyle);
                 GUILayout.Label("Haltbarkeit: " + tools.CurrentDurability.ToString("0.0", CultureInfo.GetCultureInfo("de-DE")) +
                     " / " + tools.MaximumDurability.ToString("0.0", CultureInfo.GetCultureInfo("de-DE")), textStyle);
                 GUILayout.Label(tools.HasUsableTool ? "Werkzeug verfügbar" :
                     (!tools.HasEverHadTool ? "Einmalige Startphase ohne Werkzeug" : "Produktion gesperrt: Werkzeug fehlt"), textStyle);
-            }
-            StockRecord[] entries = target.GetSnapshot();
-            if (entries.Length == 0) GUILayout.Label("Leer – keine Waren vorhanden.", textStyle);
-            foreach (StockRecord entry in entries)
-                GUILayout.Label((entry.GoodsType == "Getränke" &&
-                    System.Array.IndexOf(warehousesWithDrinks, target) >= 0
-                    ? "Wasser (Getränke)" : entry.GoodsType) + ": " + entry.Quantity, textStyle);
-            if (trackedGoods != null)
-            {
-                foreach (string goodsType in trackedGoods)
-                    if (!string.IsNullOrWhiteSpace(goodsType) && target.GetQuantity(goodsType) == 0)
-                        GUILayout.Label(goodsType + ": 0", textStyle);
-                GUILayout.Space(8f);
-                return;
-            }
-            // These quantities remain visible at zero so exhaustion is easy to test.
-            if (target.GetQuantity("Lebensmittel") == 0) GUILayout.Label("Lebensmittel: 0", textStyle);
-            if (System.Array.IndexOf(warehousesWithDrinks, target) >= 0)
-            {
-                if (target.GetQuantity("Getränke") == 0) GUILayout.Label("Wasser (Getränke): 0", textStyle);
             }
             GUILayout.Space(8f);
         }

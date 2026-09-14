@@ -11603,6 +11603,7 @@ GameObject:
   - component: {fileID: 3500000000}
   - component: {fileID: 3500000001}
   - component: {fileID: 4200000020}
+  - component: {fileID: 5400000001}
   m_Layer: 0
   m_Name: Marktstand
   m_TagString: Untagged
@@ -24928,6 +24929,69 @@ MonoBehaviour:
   smelterPoint: {fileID: 3600001001}
   deliveryQuantity: 10
   transportByWorker: 0
+--- !u!114 &5400000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3400000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4de1f32a76944a80a214dfdfadc7e610, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  locations:
+  - label: Mine
+    warehouse: {fileID: 4000000010}
+    goodsTypes:
+    - Eisenerz
+  - label: Schmelze
+    warehouse: {fileID: 3600000020}
+    goodsTypes:
+    - Eisenerz
+    - Eisen
+  - label: Schmiede
+    warehouse: {fileID: 3500000030}
+    goodsTypes:
+    - Eisen
+    - Werkzeuge
+  - label: Markt
+    warehouse: {fileID: 3500000000}
+    goodsTypes:
+    - Lebensmittel
+    - Werkzeuge
+  - label: Taverne
+    warehouse: {fileID: 3500000010}
+    goodsTypes:
+    - Lebensmittel
+    - Getränke
+  - label: Brunnen
+    warehouse: {fileID: 4900000010}
+    goodsTypes:
+    - Getränke
+  - label: Bauernhof Hans
+    warehouse: {fileID: 3500000020}
+    goodsTypes:
+    - Lebensmittel
+    - Werkzeuge
+  - label: Feldlager Tim
+    warehouse: {fileID: 5000002010}
+    goodsTypes:
+    - Lebensmittel
+    - Werkzeuge
+  - label: Feldlager Till
+    warehouse: {fileID: 5100002010}
+    goodsTypes:
+    - Lebensmittel
+    - Werkzeuge
+  - label: Feldlager Johannis
+    warehouse: {fileID: 5200002010}
+    goodsTypes:
+    - Lebensmittel
+    - Werkzeuge
+  wagon: {fileID: 4300000006}
+  visible: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

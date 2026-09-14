@@ -18,6 +18,7 @@ namespace Village.Npc
         private readonly INpcNavigation navigation;
         private readonly double energyLoss, energyRecovery, sleepEnergy, wakeEnergy;
         private bool seekingRest, seekingFood, seekingWater;
+        private double lastWaiterClosingRest = -1d;
         private NpcPoint[] route;
         private int nextPoint;
         private double serviceRemaining;
@@ -322,8 +323,19 @@ namespace Village.Npc
                 TravelledMetres += travelled;
                 if (step == frame.arrivalIn) nextPoint++;
             }
-            // Hunger/thirst are improved only by a physical tavern-service handover.
-            // Merely arriving or waiting never consumes stock or completes a meal.
+            // Opt-in for the additional waiter only. Existing guests and Gunnar cannot use this path.
+            if ((frame.eating || frame.drinking) && TavernService != null &&
+                TavernService.SelfSuppliesAtTavern(this))
+            {
+                serviceRemaining -= step;
+                if (serviceRemaining <= Epsilon)
+                {
+                    if (TavernService.TryConsumeSelf(this, frame.drinking)) ReceiveSeatService(frame.drinking);
+                    else State = NpcState.Home; // Keep the need and retry after the normal service duration.
+                    serviceRemaining = 0d;
+                }
+            }
+            // Guests are still supplied only by physical handover. Waiting at a bank consumes nothing.
             if (socialSettings != null)
             {
                 Social = Clamp(Social + step * frame.socialRate / 60d);
@@ -368,6 +380,16 @@ namespace Village.Npc
             if (Satiation <= supplies.hungerThreshold + Epsilon) seekingFood = true;
             if (Energy <= sleepEnergy + Epsilon) seekingRest = true;
             if (State == NpcState.Sleeping && Energy >= wakeEnergy - Epsilon) seekingRest = false;
+            if (TavernService != null && TavernService.SelfSuppliesAtTavern(this) && !work.IsWorkTime(TotalMinutes))
+            {
+                double closing = Math.Floor(TotalMinutes / 1440d) * 1440d + work.endHour * 60d;
+                if (closing > TotalMinutes) closing -= 1440d;
+                if (closing > lastWaiterClosingRest)
+                {
+                    lastWaiterClosingRest = closing;
+                    seekingRest = true; // This additional waiter returns to his own sleep point after closing.
+                }
+            }
             if (socialVenue != null)
             {
                 if (Social <= socialSettings.needThreshold + Epsilon) seekingSocial = true;
@@ -522,6 +544,12 @@ namespace Village.Npc
 
         private void SetSupplyGoal(bool drink)
         {
+            if (TavernService != null && TavernService.SelfSuppliesAtTavern(this))
+            {
+                SetGoal(NpcPlace.Tavern, drink ? NpcState.GoingToDrink : NpcState.GoingToEat,
+                    drink ? NpcState.Drinking : NpcState.Eating);
+                return;
+            }
             // Only the innkeeper may leave his reserved place to collect his own portion.
             if (TavernService != null && TavernService.IsOwnOrder(this) &&
                 TavernService.DirectWaiter(this)) return;
@@ -603,6 +631,7 @@ namespace Village.Npc
         private struct Snapshot { public double time, worked, slept, travelled, meals, drinks; }
     }
 }
+
 
 
 

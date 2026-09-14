@@ -18,28 +18,37 @@ public sealed class NpcSocialMeetingPlace : MonoBehaviour
     private NpcSocialVenue venue;
     [Header("Bedienung aus dem Tavernenlager")]
     [SerializeField] private NpcAgent innkeeper;
+    [SerializeField] private NpcAgent additionalWaiter;
     [SerializeField] private BuildingWarehouse tavernWarehouse;
     private NpcTavernService service;
+    private NpcTavernService waiterService;
     public NpcTavernService Service => service ?? (service = CreateService());
     private NpcTavernService CreateService()
     {
         if (innkeeper == null || tavernWarehouse == null)
             throw new InvalidOperationException("Beer garden needs its innkeeper and tavern warehouse.");
-        return new NpcTavernService(
+        var primary = new NpcTavernService(
             (drink, quantity) => tavernWarehouse.Has(drink ? "Getränke" : "Lebensmittel", quantity),
             drink => tavernWarehouse.TryRemove(drink ? "Getränke" : "Lebensmittel", 1),
             guest => Point(ServicePosition(guest.SocialSlot)));
-    }
-    public string ServiceTargetName
-    {
-        get
+        if (additionalWaiter != null)
         {
-            if (!Service.HasReservedPortion) return "Taverne (Portion abholen)";
-            foreach (NpcAgent agent in agents)
-                if (agent != null && agent.Simulation == Service.Guest)
-                    return agent.NpcName + " (Biergartenplatz)";
-            return "Biergartenplatz";
+            waiterService = new NpcTavernService(
+                (drink, quantity) => tavernWarehouse.Has(drink ? "Getränke" : "Lebensmittel", quantity),
+                drink => tavernWarehouse.TryRemove(drink ? "Getränke" : "Lebensmittel", 1),
+                guest => Point(ServicePosition(guest.SocialSlot)), true);
+            primary.LinkCoworker(waiterService);
         }
+        return primary;
+    }
+    public string GetServiceTargetName(NpcAgent worker)
+    {
+        NpcTavernService assigned = worker == additionalWaiter ? waiterService : Service;
+        if (assigned == null || !assigned.HasReservedPortion) return "Taverne (Portion abholen)";
+        foreach (NpcAgent agent in agents)
+            if (agent != null && agent.Simulation == assigned.Guest)
+                return agent.NpcName + " (Biergartenplatz)";
+        return "Biergartenplatz";
     }
 
 
@@ -87,9 +96,11 @@ public sealed class NpcSocialMeetingPlace : MonoBehaviour
     {
         if (agent.Clock != clock) throw new InvalidOperationException("Social group and NPC must use the same GameClock.");
         if (agents.Contains(agent)) return;
-        Service.Register(agent.Simulation, agent == innkeeper);
+        Service.Register(agent.Simulation, agent == innkeeper, agent != additionalWaiter);
+        if (waiterService != null)
+            waiterService.Register(agent.Simulation, agent == additionalWaiter, agent == additionalWaiter);
         group.Add(agent.Simulation, () => agent.GameMetresPerMinute);
-        group.PrepareServices = Service.Update;
+        group.PrepareServices = UpdateServices;
         agents.Add(agent);
     }
     public void Unregister(NpcAgent agent)
@@ -97,8 +108,14 @@ public sealed class NpcSocialMeetingPlace : MonoBehaviour
         if (agents.Remove(agent))
         {
             Service.Remove(agent.Simulation);
+            if (waiterService != null) waiterService.Remove(agent.Simulation);
             group.Remove(agent.Simulation);
         }
+    }
+    private void UpdateServices()
+    {
+        Service.Update();
+        if (waiterService != null) waiterService.Update();
     }
     private void OnTimeAdvanced(double previous, double current) => AdvanceAll(current);
     private void AdvanceAll(double current)
@@ -182,6 +199,7 @@ public sealed class NpcSocialMeetingPlace : MonoBehaviour
         return route.ToArray();
     }
 }
+
 
 
 

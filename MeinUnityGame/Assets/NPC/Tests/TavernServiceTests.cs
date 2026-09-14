@@ -19,29 +19,49 @@ public sealed class TavernServiceTests
         public readonly NpcTavernService Service;
         public readonly NpcSimulationGroup Group = new NpcSimulationGroup();
         public readonly NpcSimulation Guest, Waiter;
-        public World(bool drink = false, int stock = 1, double waiterHunger = 0, double guestSocial = 30, double waiterSocial = 100, double waiterSocialLoss = 0)
+        private readonly NpcSocialVenue venue;
+        public World(bool drink = false, int stock = 1, double waiterHunger = 0, double guestSocial = 30, double waiterSocial = 100, double waiterSocialLoss = 0, bool selfSupply = false, double waiterEnergyLoss = 0.1)
         {
             Food = Water = stock;
-            var venue = new NpcSocialVenue(new NpcPoint(50, 0, 0),
+            venue = new NpcSocialVenue(new NpcPoint(50, 0, 0),
                 new[] { new NpcPoint(100, 0, 0), new NpcPoint(110, 0, 0) });
             Service = new NpcTavernService((d, q) => (d ? Water : Food) >= q,
                 d => { if ((d ? Water : Food) <= 0) return false;
                     if (d) Water--; else Food--; return true; },
-                guest => new NpcPoint(guest.Position.X + 1.05, 0, 0));
+                guest => new NpcPoint(guest.Position.X + 1.05, 0, 0), selfSupply);
             Guest = Create(venue, new SupplySettings {
                 initialSatiation = drink ? 100 : 21, initialHydration = drink ? 21 : 100,
                 satiationLossPerHour = drink ? 0 : 60, hydrationLossPerHour = drink ? 60 : 0 }, guestSocial);
             Waiter = Create(venue, new SupplySettings {
                 initialSatiation = waiterHunger > 0 ? 22 : 100,
                 satiationLossPerHour = waiterHunger, hydrationLossPerHour = 0,
-                eatingMinutes = 1 }, waiterSocial, waiterSocialLoss);
+                eatingMinutes = 1 }, waiterSocial, waiterSocialLoss, waiterEnergyLoss);
             Group.Add(Guest, () => 1000); Group.Add(Waiter, () => 10);
             Service.Register(Guest, false); Service.Register(Waiter, true);
             Group.PrepareServices = Service.Update;
         }
-        private NpcSimulation Create(NpcSocialVenue venue, SupplySettings needs, double social, double socialLoss = 0) =>
+        public NpcTavernService AddCoworker(out NpcSimulation coworker, out NpcSimulation secondGuest)
+        {
+            var other = new NpcTavernService((d, q) => (d ? Water : Food) >= q,
+                d => { if ((d ? Water : Food) <= 0) return false;
+                    if (d) Water--; else Food--; return true; },
+                guest => new NpcPoint(guest.Position.X + 1.05, 0, 0), true);
+            Service.LinkCoworker(other);
+            coworker = Create(venue, new SupplySettings { satiationLossPerHour = 0, hydrationLossPerHour = 0 }, 100);
+            secondGuest = Create(venue, new SupplySettings { initialSatiation = 21,
+                satiationLossPerHour = 60, hydrationLossPerHour = 0 }, 30);
+            Service.Register(coworker, false, false);
+            Service.Register(secondGuest, false);
+            other.Register(Guest, false, false); other.Register(Waiter, false, false);
+            other.Register(secondGuest, false, false); other.Register(coworker, true);
+            Group.Add(coworker, () => 10); Group.Add(secondGuest, () => 1000);
+            Group.PrepareServices = () => { Service.Update(); other.Update(); };
+            return other;
+        }
+
+        private NpcSimulation Create(NpcSocialVenue venue, SupplySettings needs, double social, double socialLoss = 0, double energyLoss = 0.1) =>
             new NpcSimulation(new Navigation(), new WorkSchedule { startHour = 0, endHour = 23 },
-                new FatigueSettings { initialFatigue = 0, gainPerAwakeHour = 0.1 }, needs,
+                new FatigueSettings { initialFatigue = 0, gainPerAwakeHour = energyLoss }, needs,
                 () => throw new InvalidOperationException("Legacy food consumption must not run."),
                 () => throw new InvalidOperationException("Legacy drink consumption must not run."),
                 null, null, null, venue, new NpcSocialSettings { initialValue = social,
@@ -144,10 +164,11 @@ public sealed class TavernServiceTests
         Assert.That(w.Waiter.Target, Is.EqualTo(NpcPlace.Work));
     }
 
-    [Test]
-    public void ArrivedGuestRestoresHostsSocialValueWithoutMakingHostAGuest()
+    [TestCase(false)]
+    [TestCase(true)]
+    public void ArrivedGuestRestoresHostsSocialValueWithoutMakingHostAGuest(bool selfSupply)
     {
-        var w = new World(stock: 0, waiterSocial: 30, waiterSocialLoss: 3);
+        var w = new World(stock: 0, waiterSocial: 30, waiterSocialLoss: 3, selfSupply: selfSupply);
         w.Group.AdvanceTo(0.05); // Guest is still walking to the bank.
         Assert.That(w.Waiter.Social, Is.LessThan(30));
         w.Group.AdvanceTo(60);
@@ -192,6 +213,49 @@ public sealed class TavernServiceTests
     }
 
     [Test]
+    public void AdditionalWaiterEatsAtTavernWithoutReservingGuestSeat()
+    {
+        var w = new World(stock: 2, waiterHunger: 60, selfSupply: true);
+        w.Group.AdvanceTo(2);
+        Assert.That(w.Waiter.NeedsFood, Is.True);
+        Assert.That(w.Waiter.Target, Is.EqualTo(NpcPlace.Tavern));
+        Assert.That(w.Waiter.SocialSlot, Is.EqualTo(-1));
+        Assert.That(w.Waiter.MealsCompleted, Is.Zero);
+        w.Group.AdvanceTo(4);
+        Assert.That(w.Waiter.Position.X, Is.EqualTo(0).Within(1e-6));
+        Assert.That(w.Waiter.MealsCompleted, Is.EqualTo(1));
+        Assert.That(w.Food, Is.EqualTo(1));
+        Assert.That(w.Waiter.SocialSlot, Is.EqualTo(-1));
+    }
+
+    [TestCase(1)]
+    [TestCase(2)]
+    public void CoworkersDoNotDoubleBookGuestsOrDuplicateTheLastPortion(int stock)
+    {
+        var w = new World(stock: stock);
+        var other = w.AddCoworker(out NpcSimulation coworker, out NpcSimulation secondGuest);
+        w.Group.AdvanceTo(2);
+        Assert.That(w.Food, Is.EqualTo(stock)); // Pickup is a reservation, not consumption.
+        if (other.Guest != null) Assert.That(other.Guest, Is.Not.SameAs(w.Service.Guest));
+        int carried = (other.HasReservedPortion ? 1 : 0) + (w.Service.HasReservedPortion ? 1 : 0);
+        Assert.That(carried, Is.LessThanOrEqualTo(stock));
+        w.Group.AdvanceTo(30);
+        Assert.That(w.Guest.MealsCompleted + secondGuest.MealsCompleted, Is.EqualTo(stock));
+        Assert.That(w.Food, Is.Zero);
+    }
+
+    [Test]
+    public void AdditionalWaiterReturnsToOwnSleepPointAfterClosing()
+    {
+        var w = new World(stock: 0, selfSupply: true, waiterEnergyLoss: 1);
+        w.Service.Remove(w.Guest); w.Group.Remove(w.Guest);
+        w.Group.AdvanceTo(23 * 60);
+        Assert.That(w.Waiter.State, Is.EqualTo(NpcState.Sleeping));
+        Assert.That(w.Waiter.Target, Is.EqualTo(NpcPlace.Home));
+        Assert.That(w.Waiter.SocialSlot, Is.EqualTo(-1));
+    }
+
+    [Test]
     public void SkipAndSmallTicksProduceTheSameDeliveriesAndNeeds()
     {
         var jump = new World(stock: 20); var tick = new World(stock: 20);
@@ -204,5 +268,6 @@ public sealed class TavernServiceTests
         Assert.That(jump.Waiter.Position.X, Is.EqualTo(tick.Waiter.Position.X).Within(1e-5));
     }
 }
+
 
 

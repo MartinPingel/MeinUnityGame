@@ -6,6 +6,8 @@ namespace Village.Npc
     /// <summary>One real tavern portion, reserved at pickup and consumed only at a seated guest.</summary>
     public sealed class NpcTavernService
     {
+        private readonly List<NpcTavernService> coworkers = new List<NpcTavernService>();
+        private readonly bool selfSupplyAtTavern;
         private readonly List<NpcSimulation> guests = new List<NpcSimulation>();
         private readonly Func<bool, int, bool> hasStock;
         private readonly Func<bool, bool> consume;
@@ -29,16 +31,17 @@ namespace Village.Npc
 
 
         public NpcTavernService(Func<bool, int, bool> hasStock, Func<bool, bool> consume,
-            Func<NpcSimulation, NpcPoint> servicePoint)
+            Func<NpcSimulation, NpcPoint> servicePoint, bool selfSupplyAtTavern = false)
         {
+            this.selfSupplyAtTavern = selfSupplyAtTavern;
             this.hasStock = hasStock ?? throw new ArgumentNullException(nameof(hasStock));
             this.consume = consume ?? throw new ArgumentNullException(nameof(consume));
             this.servicePoint = servicePoint ?? throw new ArgumentNullException(nameof(servicePoint));
         }
-        public void Register(NpcSimulation npc, bool isWaiter)
+        public void Register(NpcSimulation npc, bool isWaiter, bool attachService = true)
         {
             if (!guests.Contains(npc)) guests.Add(npc);
-            npc.TavernService = this;
+            if (attachService) npc.TavernService = this;
             if (isWaiter)
             {
                 if (waiter != null && waiter != npc) throw new InvalidOperationException("Tavern already has a waiter.");
@@ -50,8 +53,37 @@ namespace Village.Npc
             guests.Remove(npc);
             if (npc == guest || npc == waiter) Cancel();
             if (npc == waiter) waiter = null;
-            npc.TavernService = null;
+            if (npc.TavernService == this) npc.TavernService = null;
         }
+        // Coworkers share guests and real stock, but each carries at most one portion.
+        public void LinkCoworker(NpcTavernService other)
+        {
+            if (other == null || other == this) throw new ArgumentException("Invalid coworker.");
+            if (!coworkers.Contains(other)) coworkers.Add(other);
+            if (!other.coworkers.Contains(this)) other.coworkers.Add(this);
+        }
+        public bool SelfSuppliesAtTavern(NpcSimulation npc) => selfSupplyAtTavern && npc == waiter;
+        private int OtherReservations(bool isDrink)
+        {
+            int count = 0;
+            foreach (NpcTavernService other in coworkers)
+                if (other.HasReservedPortion && other.drink == isDrink) count++;
+            return count;
+        }
+        private bool IsClaimedByCoworker(NpcSimulation npc)
+        {
+            foreach (NpcTavernService other in coworkers) if (other.Guest == npc) return true;
+            return false;
+        }
+        private bool HasAvailablePortion(bool isDrink) => hasStock(isDrink, 1 + OtherReservations(isDrink));
+        internal bool TryConsumeSelf(NpcSimulation npc, bool isDrink)
+        {
+            if (!SelfSuppliesAtTavern(npc) || NpcPoint.Distance(npc.Position, npc.TavernPoint) > 0.000001d)
+                return false;
+            int reserved = OtherReservations(isDrink) + (HasReservedPortion && drink == isDrink ? 1 : 0);
+            return hasStock(isDrink, 1 + reserved) && consume(isDrink);
+        }
+
         public bool IsOwnOrder(NpcSimulation npc) => npc == waiter && guest == waiter;
         private bool CanContinueOrder => waiter != null &&
             (guest == waiter ? waiter.HasSupplyReservation(drink) : waiter.CanServeTavern);
@@ -77,10 +109,11 @@ namespace Village.Npc
             if (waiter.NeedsDrink || waiter.NeedsFood)
             {
                 if (guest != null && guest != waiter) Cancel();
+                if (selfSupplyAtTavern) return; // This worker eats/drinks at the store, never as a seated guest.
                 if (guest == null)
                 {
                     bool ownDrink = waiter.NeedsDrink;
-                    if (!waiter.WantsSeatService(ownDrink) || !hasStock(ownDrink, 1)) return;
+                    if (!waiter.WantsSeatService(ownDrink) || !HasAvailablePortion(ownDrink)) return;
                     guest = waiter; drink = ownDrink; pickedUp = false;
                     destination = HandoverPoint(waiter);
                 }
@@ -92,12 +125,12 @@ namespace Village.Npc
                 {
                     int index = (nextGuest + i) % guests.Count;
                     NpcSimulation candidate = guests[index];
-                    if (candidate == waiter) continue;
+                    if (candidate == waiter || IsClaimedByCoworker(candidate)) continue;
                     bool thirsty = candidate.WantsSeatService(true);
                     bool hungry = candidate.WantsSeatService(false);
                     if (!thirsty && !hungry) continue;
                     // Preserve thirst priority; do not serve a meal in place of a missing drink.
-                    if (!hasStock(thirsty, 1)) continue;
+                    if (!HasAvailablePortion(thirsty)) continue;
                     guest = candidate; drink = thirsty; pickedUp = false;
                     destination = HandoverPoint(candidate);
                     nextGuest = (index + 1) % guests.Count;
@@ -107,7 +140,7 @@ namespace Village.Npc
             if (guest == null) return;
             if (!pickedUp && NpcPoint.Distance(waiter.Position, waiter.TavernPoint) < 0.000001d)
             {
-                if (!hasStock(drink, 1)) { Cancel(); return; }
+                if (!HasAvailablePortion(drink)) { Cancel(); return; }
                 pickedUp = true; // Reserve, without consuming or improving the need.
             }
             if (pickedUp && NpcPoint.Distance(waiter.Position, destination) < 0.000001d &&
@@ -130,5 +163,6 @@ namespace Village.Npc
         void SetServiceDestination(NpcPoint point);
     }
 }
+
 
 

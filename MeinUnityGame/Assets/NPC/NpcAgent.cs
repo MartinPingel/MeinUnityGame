@@ -48,7 +48,7 @@ public sealed class NpcAgent : MonoBehaviour
     public string CargoName => deliveryJob != null ? deliveryJob.CargoName : "Ware";
     public string WorkHours => $"{work.startHour:00}:00–{work.endHour:00}:00";
     public string TargetName => simulation == null ? "Nicht bereit" :
-        simulation.Target == NpcPlace.Service ? socialMeeting.ServiceTargetName :
+        simulation.Target == NpcPlace.Service ? socialMeeting.GetServiceTargetName(this) :
         simulation.Target == NpcPlace.Social ? "Biergarten" :
         simulation.Target == NpcPlace.ToolPickup ? "Marktstand (Werkzeug)" :
         simulation.Target == NpcPlace.Tavern ? "Taverne" :
@@ -204,5 +204,6 @@ public sealed class NpcAgent : MonoBehaviour
         }
     }
 }
+
 
 

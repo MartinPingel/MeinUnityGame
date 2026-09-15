@@ -18,10 +18,12 @@ public sealed class NpcSocialMeetingPlace : MonoBehaviour
     private NpcSocialVenue venue;
     [Header("Bedienung aus dem Tavernenlager")]
     [SerializeField] private NpcAgent innkeeper;
-    [SerializeField] private NpcAgent additionalWaiter;
+    // Each entry gets its own NpcTavernService (same class, same coworker-sharing as the
+    // innkeeper's), so any number of waiters can serve the same guests from the same stock.
+    [SerializeField] private NpcAgent[] additionalWaiters;
     [SerializeField] private BuildingWarehouse tavernWarehouse;
     private NpcTavernService service;
-    private NpcTavernService waiterService;
+    private readonly List<NpcTavernService> waiterServices = new List<NpcTavernService>();
     public NpcTavernService Service => service ?? (service = CreateService());
     private NpcTavernService CreateService()
     {
@@ -31,19 +33,27 @@ public sealed class NpcSocialMeetingPlace : MonoBehaviour
             (drink, quantity) => tavernWarehouse.Has(drink ? "Getränke" : "Lebensmittel", quantity),
             drink => tavernWarehouse.TryRemove(drink ? "Getränke" : "Lebensmittel", 1),
             guest => Point(ServicePosition(guest.SocialSlot)));
-        if (additionalWaiter != null)
-        {
-            waiterService = new NpcTavernService(
-                (drink, quantity) => tavernWarehouse.Has(drink ? "Getränke" : "Lebensmittel", quantity),
-                drink => tavernWarehouse.TryRemove(drink ? "Getränke" : "Lebensmittel", 1),
-                guest => Point(ServicePosition(guest.SocialSlot)), true);
-            primary.LinkCoworker(waiterService);
-        }
+        if (additionalWaiters != null)
+            foreach (NpcAgent waiterAgent in additionalWaiters)
+            {
+                // A null slot keeps its place in the list so later indices (by Array.IndexOf
+                // on additionalWaiters) still line up with their own waiterServices entry.
+                if (waiterAgent == null) { waiterServices.Add(null); continue; }
+                var waiterService = new NpcTavernService(
+                    (drink, quantity) => tavernWarehouse.Has(drink ? "Getränke" : "Lebensmittel", quantity),
+                    drink => tavernWarehouse.TryRemove(drink ? "Getränke" : "Lebensmittel", 1),
+                    guest => Point(ServicePosition(guest.SocialSlot)), true);
+                primary.LinkCoworker(waiterService);
+                foreach (NpcTavernService existing in waiterServices)
+                    if (existing != null) existing.LinkCoworker(waiterService);
+                waiterServices.Add(waiterService);
+            }
         return primary;
     }
     public string GetServiceTargetName(NpcAgent worker)
     {
-        NpcTavernService assigned = worker == additionalWaiter ? waiterService : Service;
+        int index = additionalWaiters != null ? Array.IndexOf(additionalWaiters, worker) : -1;
+        NpcTavernService assigned = index >= 0 ? waiterServices[index] : Service;
         if (assigned == null || !assigned.HasReservedPortion) return "Taverne (Portion abholen)";
         foreach (NpcAgent agent in agents)
             if (agent != null && agent.Simulation == assigned.Guest)
@@ -96,9 +106,10 @@ public sealed class NpcSocialMeetingPlace : MonoBehaviour
     {
         if (agent.Clock != clock) throw new InvalidOperationException("Social group and NPC must use the same GameClock.");
         if (agents.Contains(agent)) return;
-        Service.Register(agent.Simulation, agent == innkeeper, agent != additionalWaiter);
-        if (waiterService != null)
-            waiterService.Register(agent.Simulation, agent == additionalWaiter, agent == additionalWaiter);
+        int waiterIndex = additionalWaiters != null ? Array.IndexOf(additionalWaiters, agent) : -1;
+        Service.Register(agent.Simulation, agent == innkeeper, waiterIndex < 0);
+        if (waiterIndex >= 0)
+            waiterServices[waiterIndex].Register(agent.Simulation, true, true);
         group.Add(agent.Simulation, () => agent.GameMetresPerMinute);
         group.PrepareServices = UpdateServices;
         agents.Add(agent);
@@ -108,14 +119,15 @@ public sealed class NpcSocialMeetingPlace : MonoBehaviour
         if (agents.Remove(agent))
         {
             Service.Remove(agent.Simulation);
-            if (waiterService != null) waiterService.Remove(agent.Simulation);
+            int waiterIndex = additionalWaiters != null ? Array.IndexOf(additionalWaiters, agent) : -1;
+            if (waiterIndex >= 0) waiterServices[waiterIndex].Remove(agent.Simulation);
             group.Remove(agent.Simulation);
         }
     }
     private void UpdateServices()
     {
         Service.Update();
-        if (waiterService != null) waiterService.Update();
+        foreach (NpcTavernService waiterService in waiterServices) waiterService.Update();
     }
     private void OnTimeAdvanced(double previous, double current) => AdvanceAll(current);
     private void AdvanceAll(double current)

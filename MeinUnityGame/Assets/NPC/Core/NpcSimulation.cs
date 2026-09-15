@@ -19,6 +19,13 @@ namespace Village.Npc
         private readonly double energyLoss, energyRecovery, sleepEnergy, wakeEnergy;
         private bool seekingRest, seekingFood, seekingWater;
         private double lastWaiterClosingRest = -1d;
+        // extendForBreaks bookkeeping: minutes owed for the current shift, and the worked-minutes
+        // baseline captured at its start. Unused (stays 0/false) unless a WorkSchedule opts in.
+        private readonly double dailyTargetMinutes;
+        // Negative infinity until the first real shift-start transition: makes the "still
+        // owes work" check false before any shift has ever begun.
+        private double shiftWorkBaseline = double.NegativeInfinity;
+        private bool wasWorkWindow;
         private NpcPoint[] route;
         private int nextPoint;
         private double serviceRemaining;
@@ -118,14 +125,17 @@ namespace Village.Npc
                 deliveryQuantity = deliverySettings.deliveryQuantity;
             }
             work = new WorkSchedule { startHour = schedule.startHour, endHour = schedule.endHour,
-                commuteBeforeWork = schedule.commuteBeforeWork };
+                commuteBeforeWork = schedule.commuteBeforeWork, extendForBreaks = schedule.extendForBreaks };
+            dailyTargetMinutes = ((work.endHour - work.startHour + 24) % 24) * 60d;
             supplies = new SupplySettings
             {
                 initialSatiation = supplySettings.initialSatiation,
                 initialHydration = supplySettings.initialHydration,
                 satiationLossPerHour = supplySettings.satiationLossPerHour,
                 productiveSatiationMultiplier = supplySettings.productiveSatiationMultiplier,
+                workingSatiationLossPerHour = supplySettings.workingSatiationLossPerHour,
                 hydrationLossPerHour = supplySettings.hydrationLossPerHour,
+                workingHydrationLossPerHour = supplySettings.workingHydrationLossPerHour,
                 hungerThreshold = supplySettings.hungerThreshold,
                 thirstThreshold = supplySettings.thirstThreshold,
                 eatingMinutes = supplySettings.eatingMinutes,
@@ -213,6 +223,7 @@ namespace Village.Npc
             public bool wearing;
             public bool producing;
             public double satiationRate;
+            public double hydrationRate;
             public double energyIn;
             public double foodIn;
             public double waterIn;
@@ -249,18 +260,27 @@ namespace Village.Npc
             bool producing = deliveryInventory != null && working &&
                 (!(deliveryInventory is INpcProductionGate gate) || gate.CanProduce);
             if (producing) step = Math.Min(step, productionRemaining);
+            // Stop exactly when today's extended target is reached, rather than only at the
+            // next boundary/need - which past the nominal end hour could be far in the future.
+            if (working && work.extendForBreaks)
+                step = Math.Min(step, Math.Max(Epsilon, dailyTargetMinutes - (WorkedMinutes - shiftWorkBaseline)));
             // Only real production receives the hunger surcharge. Needs, travel,
             // idle shifts and missing inputs/tools retain the ordinary rate.
+            // workingSatiationLossPerHour/workingHydrationLossPerHour are opt-in additions
+            // (default 0) tied to State == Working itself, independent of production gating -
+            // unlike productiveSatiationMultiplier, they also apply to non-producing workers.
             double satiationRate = supplies.satiationLossPerHour *
-                (producing ? supplies.productiveSatiationMultiplier : 1d);
+                (producing ? supplies.productiveSatiationMultiplier : 1d) +
+                (working ? supplies.workingSatiationLossPerHour : 0d);
+            double hydrationRate = supplies.hydrationLossPerHour + (working ? supplies.workingHydrationLossPerHour : 0d);
             if (State == NpcState.Delivering) step = Math.Min(step, 1d);
             double energyIn = sleeping ? (wakeEnergy - Energy) / (energyRecovery / 60d)
                 : !seekingRest ? (Energy - sleepEnergy) / (energyLoss / 60d) : double.PositiveInfinity;
             double foodIn = !seekingFood && satiationRate > 0d
                 ? (Satiation - supplies.hungerThreshold) / (satiationRate / 60d)
                 : double.PositiveInfinity;
-            double waterIn = !seekingWater && supplies.hydrationLossPerHour > 0d
-                ? (Hydration - supplies.thirstThreshold) / (supplies.hydrationLossPerHour / 60d)
+            double waterIn = !seekingWater && hydrationRate > 0d
+                ? (Hydration - supplies.thirstThreshold) / (hydrationRate / 60d)
                 : double.PositiveInfinity;
             double arrivalIn = travelling ? NpcPoint.Distance(Position, route[nextPoint]) / travelSpeed
                 : double.PositiveInfinity;
@@ -289,7 +309,7 @@ namespace Village.Npc
                 Step = step, sleeping = sleeping, travelling = travelling,
                 travelSpeed = travelSpeed, eating = eating, drinking = drinking,
                 working = working, wearing = wearing, producing = producing,
-                satiationRate = satiationRate, energyIn = energyIn, foodIn = foodIn,
+                satiationRate = satiationRate, hydrationRate = hydrationRate, energyIn = energyIn, foodIn = foodIn,
                 waterIn = waterIn, arrivalIn = arrivalIn, socialising = socialising,
                 socialRate = socialRate, socialIn = socialIn, socialTarget = socialTarget
             };
@@ -313,7 +333,7 @@ namespace Village.Npc
             if (frame.sleeping) SleptMinutes += step;
             Energy = Clamp(Energy + step * (frame.sleeping ? energyRecovery : -energyLoss) / 60d);
             Satiation = Clamp(Satiation - step * frame.satiationRate / 60d);
-            Hydration = Clamp(Hydration - step * supplies.hydrationLossPerHour / 60d);
+            Hydration = Clamp(Hydration - step * frame.hydrationRate / 60d);
             if (step == frame.energyIn) Energy = frame.sleeping ? wakeEnergy : sleepEnergy;
             if (step == frame.foodIn) Satiation = supplies.hungerThreshold;
             if (step == frame.waterIn) Hydration = supplies.thirstThreshold;
@@ -404,6 +424,13 @@ namespace Village.Npc
                 if (((!seekingSocial || IsInnkeeper || work.IsWorkTime(TotalMinutes)) && !needsSupply) ||
                     (seekingRest && !needsSupply)) ReleaseSocialPlace();
             }
+            // extendForBreaks: reset the owed-minutes baseline exactly once per shift, at the
+            // transition into its nominal window, then track whether today's target is still short.
+            bool isWorkTimeNow = work.IsWorkTime(TotalMinutes);
+            if (work.extendForBreaks && isWorkTimeNow && !wasWorkWindow) shiftWorkBaseline = WorkedMinutes;
+            wasWorkWindow = isWorkTimeNow;
+            bool stillOwesWork = work.extendForBreaks && !isWorkTimeNow &&
+                WorkedMinutes - shiftWorkBaseline < dailyTargetMinutes - Epsilon;
             // Water carried to the tavern is unloaded even when the arrival was a need detour.
             // This is opt-in: farm/smith deliveries retain their existing behavior.
             var waterSupply = deliveryInventory as INpcWaterSupply;
@@ -444,7 +471,7 @@ namespace Village.Npc
             else if (seekingFood) SetSupplyGoal(false);
             else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
             else if (restock != null && work.IsWorkTime(TotalMinutes) && TryRestock(null)) { }
-            else if (seekingSocial && !IsInnkeeper && !work.IsWorkTime(TotalMinutes))
+            else if (seekingSocial && !IsInnkeeper && !isWorkTimeNow && !stillOwesWork)
             {
                 int previousSlot = socialSlot;
                 socialSlot = socialVenue.Reserve(this);
@@ -473,7 +500,7 @@ namespace Village.Npc
                     Decide(); // Re-evaluate the current shift, not the task from departure time.
                 }
             }
-            else if (work.IsWorkTime(TotalMinutes))
+            else if (isWorkTimeNow || stillOwesWork)
             {
                 if (workEquipment is INpcToolSupply toolSupply && toolSupply.NeedsDelivery)
                 {

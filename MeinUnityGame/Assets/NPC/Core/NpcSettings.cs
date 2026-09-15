@@ -11,6 +11,10 @@ namespace Village.Npc
         public int startHour = 8;
         public int endHour = 17;
         public bool commuteBeforeWork;
+        // Opt-in: keep working past endHour, still bounded by higher-priority needs,
+        // until today's WorkedMinutes reaches the full scheduled duration. Off by
+        // default so every existing NPC keeps its current end-of-shift behavior.
+        public bool extendForBreaks;
 
         public bool IsWorkTime(double minutes)
         {
@@ -68,7 +72,12 @@ namespace Village.Npc
         public double satiationLossPerHour = 2d;
         // Opt-in keeps older scenes/callers unchanged; configured per NPC in the Inspector.
         public double productiveSatiationMultiplier = 1d;
+        // Opt-in additional rate while State == Working, regardless of production gating
+        // (unlike productiveSatiationMultiplier). Zero keeps existing NPCs unchanged.
+        public double workingSatiationLossPerHour;
         public double hydrationLossPerHour = 4d;
+        // Opt-in hydration equivalent of workingSatiationLossPerHour. Zero by default.
+        public double workingHydrationLossPerHour;
         public double hungerThreshold = 20d;
         public double thirstThreshold = 20d;
         public double eatingMinutes = 30d;
@@ -77,14 +86,16 @@ namespace Village.Npc
         public void Validate()
         {
             double[] values = { initialSatiation, initialHydration, satiationLossPerHour, productiveSatiationMultiplier,
-                hydrationLossPerHour, hungerThreshold, thirstThreshold, eatingMinutes, drinkingMinutes };
+                workingSatiationLossPerHour, hydrationLossPerHour, workingHydrationLossPerHour,
+                hungerThreshold, thirstThreshold, eatingMinutes, drinkingMinutes };
             foreach (double value in values)
                 if (double.IsNaN(value) || double.IsInfinity(value))
                     throw new ArgumentException("Supply settings must be finite.");
             if (initialSatiation < 0d || initialSatiation > 100d ||
                 initialHydration < 0d || initialHydration > 100d ||
-                satiationLossPerHour < 0d || productiveSatiationMultiplier < 1d ||
-                double.IsInfinity(satiationLossPerHour * productiveSatiationMultiplier) || hydrationLossPerHour < 0d ||
+                satiationLossPerHour < 0d || productiveSatiationMultiplier < 1d || workingSatiationLossPerHour < 0d ||
+                double.IsInfinity(satiationLossPerHour * productiveSatiationMultiplier) ||
+                hydrationLossPerHour < 0d || workingHydrationLossPerHour < 0d ||
                 hungerThreshold < 0d || hungerThreshold >= 100d ||
                 thirstThreshold < 0d || thirstThreshold >= 100d ||
                 eatingMinutes <= 0d || drinkingMinutes <= 0d)

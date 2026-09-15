@@ -4320,6 +4320,7 @@ MonoBehaviour:
   work:
     startHour: 8
     endHour: 17
+    extendForBreaks: 1
   fatigue:
     initialFatigue: 64
     gainPerAwakeHour: 4
@@ -4329,9 +4330,11 @@ MonoBehaviour:
   supplies:
     initialSatiation: 100
     initialHydration: 100
-    satiationLossPerHour: 5
+    satiationLossPerHour: 0
     productiveSatiationMultiplier: 2
-    hydrationLossPerHour: 4
+    workingSatiationLossPerHour: 17.7778
+    hydrationLossPerHour: 0
+    workingHydrationLossPerHour: 17.7778
     hungerThreshold: 20
     thirstThreshold: 20
     eatingMinutes: 30
@@ -10474,6 +10477,7 @@ MonoBehaviour:
     startHour: 8
     endHour: 18
     commuteBeforeWork: 1
+    extendForBreaks: 1
   fatigue:
     initialFatigue: 64
     gainPerAwakeHour: 4
@@ -10483,9 +10487,11 @@ MonoBehaviour:
   supplies:
     initialSatiation: 100
     initialHydration: 100
-    satiationLossPerHour: 5
+    satiationLossPerHour: 0
     productiveSatiationMultiplier: 2
-    hydrationLossPerHour: 4
+    workingSatiationLossPerHour: 16
+    hydrationLossPerHour: 0
+    workingHydrationLossPerHour: 16
     hungerThreshold: 20
     thirstThreshold: 20
     eatingMinutes: 30
@@ -10647,6 +10653,7 @@ MonoBehaviour:
     startHour: 7
     endHour: 17
     commuteBeforeWork: 1
+    extendForBreaks: 1
   fatigue:
     initialFatigue: 64
     gainPerAwakeHour: 4
@@ -10656,9 +10663,11 @@ MonoBehaviour:
   supplies:
     initialSatiation: 100
     initialHydration: 100
-    satiationLossPerHour: 5
+    satiationLossPerHour: 0
     productiveSatiationMultiplier: 2
-    hydrationLossPerHour: 4
+    workingSatiationLossPerHour: 16
+    hydrationLossPerHour: 0
+    workingHydrationLossPerHour: 16
     hungerThreshold: 20
     thirstThreshold: 20
     eatingMinutes: 30
@@ -11788,6 +11797,7 @@ MonoBehaviour:
     startHour: 9
     endHour: 18
     commuteBeforeWork: 1
+    extendForBreaks: 1
   fatigue:
     initialFatigue: 64
     gainPerAwakeHour: 4
@@ -11797,9 +11807,11 @@ MonoBehaviour:
   supplies:
     initialSatiation: 100
     initialHydration: 100
-    satiationLossPerHour: 5
+    satiationLossPerHour: 0
     productiveSatiationMultiplier: 2
-    hydrationLossPerHour: 4
+    workingSatiationLossPerHour: 17.7778
+    hydrationLossPerHour: 0
+    workingHydrationLossPerHour: 17.7778
     hungerThreshold: 20
     thirstThreshold: 20
     eatingMinutes: 30
@@ -14566,6 +14578,7 @@ MonoBehaviour:
     startHour: 7
     endHour: 17
     commuteBeforeWork: 1
+    extendForBreaks: 1
   fatigue:
     initialFatigue: 64
     gainPerAwakeHour: 4
@@ -14575,9 +14588,11 @@ MonoBehaviour:
   supplies:
     initialSatiation: 100
     initialHydration: 100
-    satiationLossPerHour: 5
+    satiationLossPerHour: 0
     productiveSatiationMultiplier: 2
-    hydrationLossPerHour: 4
+    workingSatiationLossPerHour: 16
+    hydrationLossPerHour: 0
+    workingHydrationLossPerHour: 16
     hungerThreshold: 20
     thirstThreshold: 20
     eatingMinutes: 30
@@ -14794,6 +14809,7 @@ MonoBehaviour:
     startHour: 7
     endHour: 17
     commuteBeforeWork: 1
+    extendForBreaks: 1
   fatigue:
     initialFatigue: 64
     gainPerAwakeHour: 4
@@ -14803,9 +14819,11 @@ MonoBehaviour:
   supplies:
     initialSatiation: 100
     initialHydration: 100
-    satiationLossPerHour: 5
+    satiationLossPerHour: 0
     productiveSatiationMultiplier: 2
-    hydrationLossPerHour: 4
+    workingSatiationLossPerHour: 16
+    hydrationLossPerHour: 0
+    workingHydrationLossPerHour: 16
     hungerThreshold: 20
     thirstThreshold: 20
     eatingMinutes: 30
@@ -22336,6 +22354,7 @@ MonoBehaviour:
   work:
     startHour: 8
     endHour: 17
+    extendForBreaks: 1
   fatigue:
     initialFatigue: 64
     gainPerAwakeHour: 4
@@ -22345,9 +22364,11 @@ MonoBehaviour:
   supplies:
     initialSatiation: 100
     initialHydration: 100
-    satiationLossPerHour: 5
+    satiationLossPerHour: 0
     productiveSatiationMultiplier: 2
-    hydrationLossPerHour: 4
+    workingSatiationLossPerHour: 17.7778
+    hydrationLossPerHour: 0
+    workingHydrationLossPerHour: 17.7778
     hungerThreshold: 20
     thirstThreshold: 20
     eatingMinutes: 30
@@ -23203,6 +23224,7 @@ MonoBehaviour:
   work:
     startHour: 8
     endHour: 17
+    extendForBreaks: 1
   fatigue:
     initialFatigue: 64
     gainPerAwakeHour: 4
@@ -23212,9 +23234,11 @@ MonoBehaviour:
   supplies:
     initialSatiation: 100
     initialHydration: 100
-    satiationLossPerHour: 5
+    satiationLossPerHour: 0
     productiveSatiationMultiplier: 2
-    hydrationLossPerHour: 4
+    workingSatiationLossPerHour: 17.7778
+    hydrationLossPerHour: 0
+    workingHydrationLossPerHour: 17.7778
     hungerThreshold: 20
     thirstThreshold: 20
     eatingMinutes: 30
@@ -24070,6 +24094,7 @@ MonoBehaviour:
   work:
     startHour: 8
     endHour: 17
+    extendForBreaks: 1
   fatigue:
     initialFatigue: 64
     gainPerAwakeHour: 4
@@ -24079,9 +24104,11 @@ MonoBehaviour:
   supplies:
     initialSatiation: 100
     initialHydration: 100
-    satiationLossPerHour: 5
+    satiationLossPerHour: 0
     productiveSatiationMultiplier: 2
-    hydrationLossPerHour: 4
+    workingSatiationLossPerHour: 17.7778
+    hydrationLossPerHour: 0
+    workingHydrationLossPerHour: 17.7778
     hungerThreshold: 20
     thirstThreshold: 20
     eatingMinutes: 30

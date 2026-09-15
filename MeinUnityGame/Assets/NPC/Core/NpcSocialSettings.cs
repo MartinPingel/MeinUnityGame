@@ -8,10 +8,10 @@ namespace Village.Npc
         public double initialValue = 100d;
         public double lossPerHour = 3d;
         public double needThreshold = 35d;
-        public double recoveryPerHour = 60d;
+        public double recoveryPerHour = 100d;
         // Fraction of company recovery while resting alone at a reserved seat.
-        public double aloneRecoveryMultiplier = 0.1d;
-        public double satisfiedValue = 85d;
+        public double aloneRecoveryMultiplier = 0.5d;
+        public double satisfiedValue = 100d;
         public void Validate()
         {
             foreach (double v in new[] { initialValue, lossPerHour, needThreshold, recoveryPerHour, aloneRecoveryMultiplier, satisfiedValue })

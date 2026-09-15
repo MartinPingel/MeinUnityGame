@@ -4314,9 +4314,9 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 60
-    aloneRecoveryMultiplier: 0.1
-    satisfiedValue: 85
+    recoveryPerHour: 100
+    aloneRecoveryMultiplier: 0.5
+    satisfiedValue: 100
   work:
     startHour: 8
     endHour: 17
@@ -4734,8 +4734,9 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 30
-    satisfiedValue: 85
+    recoveryPerHour: 100
+    aloneRecoveryMultiplier: 0.5
+    satisfiedValue: 100
   work:
     startHour: 10
     endHour: 23
@@ -10466,9 +10467,9 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 60
-    aloneRecoveryMultiplier: 0.1
-    satisfiedValue: 85
+    recoveryPerHour: 100
+    aloneRecoveryMultiplier: 0.5
+    satisfiedValue: 100
   work:
     startHour: 8
     endHour: 18
@@ -10639,9 +10640,9 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 60
-    aloneRecoveryMultiplier: 0.1
-    satisfiedValue: 85
+    recoveryPerHour: 100
+    aloneRecoveryMultiplier: 0.5
+    satisfiedValue: 100
   work:
     startHour: 7
     endHour: 17
@@ -11780,9 +11781,9 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 60
-    aloneRecoveryMultiplier: 0.1
-    satisfiedValue: 85
+    recoveryPerHour: 100
+    aloneRecoveryMultiplier: 0.5
+    satisfiedValue: 100
   work:
     startHour: 9
     endHour: 18
@@ -14558,9 +14559,9 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 60
-    aloneRecoveryMultiplier: 0.1
-    satisfiedValue: 85
+    recoveryPerHour: 100
+    aloneRecoveryMultiplier: 0.5
+    satisfiedValue: 100
   work:
     startHour: 7
     endHour: 17
@@ -14786,9 +14787,9 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 60
-    aloneRecoveryMultiplier: 0.1
-    satisfiedValue: 85
+    recoveryPerHour: 100
+    aloneRecoveryMultiplier: 0.5
+    satisfiedValue: 100
   work:
     startHour: 7
     endHour: 17
@@ -22088,8 +22089,9 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 30
-    satisfiedValue: 85
+    recoveryPerHour: 100
+    aloneRecoveryMultiplier: 0.5
+    satisfiedValue: 100
   work:
     startHour: 10
     endHour: 23
@@ -22328,9 +22330,9 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 60
-    aloneRecoveryMultiplier: 0.1
-    satisfiedValue: 85
+    recoveryPerHour: 100
+    aloneRecoveryMultiplier: 0.5
+    satisfiedValue: 100
   work:
     startHour: 8
     endHour: 17
@@ -23195,9 +23197,9 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 60
-    aloneRecoveryMultiplier: 0.1
-    satisfiedValue: 85
+    recoveryPerHour: 100
+    aloneRecoveryMultiplier: 0.5
+    satisfiedValue: 100
   work:
     startHour: 8
     endHour: 17
@@ -24062,9 +24064,9 @@ MonoBehaviour:
     initialValue: 100
     lossPerHour: 3
     needThreshold: 35
-    recoveryPerHour: 60
-    aloneRecoveryMultiplier: 0.1
-    satisfiedValue: 85
+    recoveryPerHour: 100
+    aloneRecoveryMultiplier: 0.5
+    satisfiedValue: 100
   work:
     startHour: 8
     endHour: 17

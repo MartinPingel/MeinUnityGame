@@ -29,6 +29,12 @@ public sealed class NpcAgent : MonoBehaviour
     [SerializeField] private NpcSocialMeetingPlace socialMeeting;
     [SerializeField] private NpcSocialSettings social = new NpcSocialSettings();
 
+    [Header("Besuchsrunde (optional, z.B. Pfarrer)")]
+    [Tooltip("Wenn gesetzt, ist die Arbeitsstelle dynamisch: erst jeden Stop hier der Reihe " +
+        "nach fuer visitStopMinutes besuchen, danach fuer den Rest der Schicht an workplace bleiben.")]
+    [SerializeField] private Transform[] visitStops;
+    [SerializeField, Min(0f)] private float visitStopMinutes = 10f;
+
     public WorkplaceTools WorkTools => workToolWarehouse != null ? workToolWarehouse.Tools : null;
 
     [Header("Arbeit, Energie und Versorgung - vor Play einstellen")]
@@ -80,15 +86,19 @@ public sealed class NpcAgent : MonoBehaviour
                     foreach (NpcSocialMeetingPlace place in FindObjectsByType<NpcSocialMeetingPlace>(
                         FindObjectsInactive.Exclude, FindObjectsSortMode.None))
                         if (place.Clock == clock) { socialMeeting = place; break; }
+                INpcVisitRoute visitRoute = visitStops != null && visitStops.Length > 0
+                    ? new VisitRoute(visitStops, workplace, visitStopMinutes) : null;
                 var navigation = new SceneNavigation(roadRoot, home, workplace, tavern, well,
                     deliveryJob != null ? deliveryJob.DeliveryPoint : null,
-                    deliveryJob != null ? deliveryJob.PickupPoint : null, toolPickupPoint, socialMeeting);
+                    deliveryJob != null ? deliveryJob.PickupPoint : null, toolPickupPoint, socialMeeting,
+                    visitRoute);
                 simulation = new NpcSimulation(navigation, work, fatigue, supplies,
                     null, null, // Stock is consumed only by NpcTavernService at handover.
                     deliveryJob, deliveryJob != null ? deliveryJob.Settings : null,
                     workToolWarehouse != null ? new WorkEquipment(workToolWarehouse, toolSourceWarehouse) : null,
                     socialMeeting != null ? socialMeeting.Venue : null,
-                    socialMeeting != null ? social : null);
+                    socialMeeting != null ? social : null,
+                    visitRoute);
             }
             // Initialization and re-enabling catch up from the same baseline; nothing is reset.
             if (socialMeeting != null) socialMeeting.Register(this);
@@ -160,21 +170,68 @@ public sealed class NpcAgent : MonoBehaviour
         }
     }
 
+    /// <summary>Timed sequence of stops (e.g. a visiting round), then a steady base point for
+    /// the rest of the shift. Reused as-is by NpcSimulation's opt-in INpcVisitRoute hook.</summary>
+    private sealed class VisitRoute : INpcVisitRoute
+    {
+        private readonly NpcPoint[] stops;
+        private readonly NpcPoint basePoint;
+        private readonly double stopMinutes;
+        private int index; // stops.Length once settled at basePoint for the rest of the shift.
+        private double remaining = double.PositiveInfinity;
+
+        public VisitRoute(Transform[] stopTransforms, Transform basePlace, float stopMinutes)
+        {
+            stops = new NpcPoint[stopTransforms.Length];
+            for (int i = 0; i < stopTransforms.Length; i++)
+            {
+                if (stopTransforms[i] == null) throw new InvalidOperationException("Missing visit stop.");
+                stops[i] = ToPoint(stopTransforms[i].position);
+            }
+            basePoint = ToPoint(basePlace.position);
+            this.stopMinutes = stopMinutes;
+            index = stops.Length; // Settled at basePoint until the first shift starts.
+        }
+
+        public NpcPoint CurrentStop => index < stops.Length ? stops[index] : basePoint;
+        public double MinutesUntilNextStop => index < stops.Length ? remaining : double.PositiveInfinity;
+
+        public void Consume(double minutes)
+        {
+            if (index >= stops.Length) return;
+            remaining -= minutes;
+            if (remaining <= 1e-9)
+            {
+                index++;
+                remaining = stopMinutes;
+            }
+        }
+
+        public void ResetForNewShift()
+        {
+            index = 0;
+            remaining = stops.Length > 0 ? stopMinutes : double.PositiveInfinity;
+        }
+    }
+
     /// <summary>Read-only adapter to the unchanged village road router.</summary>
     private sealed class SceneNavigation : INpcNavigation, INpcSocialNavigation, INpcServiceNavigation, INpcRestockNavigation
     {
         private readonly Transform roads;
         private readonly NpcPoint[] places;
         private readonly NpcSocialMeetingPlace meeting;
+        private readonly INpcVisitRoute visitRoute;
         public void SetRestockPickup(NpcPoint point) => places[(int)NpcPlace.Pickup] = point;
         public void SetServiceDestination(NpcPoint point) => places[(int)NpcPlace.Service] = point;
         public void SetSocialDestination(NpcPoint point) => places[(int)NpcPlace.Social] = point;
 
         public SceneNavigation(Transform roads, Transform home, Transform work, Transform tavern, Transform well,
-            Transform deliveryPoint = null, Transform pickupPoint = null, Transform toolPoint = null, NpcSocialMeetingPlace meeting = null)
+            Transform deliveryPoint = null, Transform pickupPoint = null, Transform toolPoint = null,
+            NpcSocialMeetingPlace meeting = null, INpcVisitRoute visitRoute = null)
         {
             this.roads = roads;
             this.meeting = meeting;
+            this.visitRoute = visitRoute;
             places = new[] { ToPoint(home.position), ToPoint(work.position),
                 ToPoint(tavern.position), ToPoint(well.position),
                 ToPoint(deliveryPoint != null ? deliveryPoint.position : work.position),
@@ -192,7 +249,10 @@ public sealed class NpcAgent : MonoBehaviour
             }
         }
 
-        public NpcPoint GetPlace(NpcPlace place) => places[(int)place];
+        // Opt-in: a visit route makes the work destination dynamic; every other NPC keeps
+        // its single static workplace point from the places array, unchanged.
+        public NpcPoint GetPlace(NpcPlace place) =>
+            place == NpcPlace.Work && visitRoute != null ? visitRoute.CurrentStop : places[(int)place];
 
         public NpcPoint[] FindRoute(NpcPoint from, NpcPlace destination)
         {

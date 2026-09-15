@@ -15,9 +15,21 @@ namespace Village.Npc
         // until today's WorkedMinutes reaches the full scheduled duration. Off by
         // default so every existing NPC keeps its current end-of-shift behavior.
         public bool extendForBreaks;
+        // Opt-in: count travel to/from the workplace as work time too (WorkedMinutes,
+        // the elevated working hunger/thirst rate, extendForBreaks). Off by default:
+        // ordinary commuting keeps its existing, uncounted behavior.
+        public bool travelCountsAsWork;
+        // Opt-in: restrict which weekdays this schedule is active on. Bit 0 = Monday
+        // ... bit 6 = Sunday. Default = every day, preserving existing behavior.
+        public int workDaysMask = 0b1111111;
 
         public bool IsWorkTime(double minutes)
         {
+            if (workDaysMask != 0b1111111)
+            {
+                int weekdayBit = (int)Math.Floor(minutes / 1440d) % 7; // day 0 = Monday
+                if ((workDaysMask & (1 << weekdayBit)) == 0) return false;
+            }
             double hour = (minutes % 1440d) / 60d;
             return startHour < endHour
                 ? hour >= startHour && hour < endHour
@@ -38,6 +50,8 @@ namespace Village.Npc
         {
             if (startHour < 0 || startHour > 23 || endHour < 0 || endHour > 23 || startHour == endHour)
                 throw new ArgumentException("Work hours must be distinct hours between 0 and 23.");
+            if (workDaysMask <= 0 || workDaysMask > 0b1111111)
+                throw new ArgumentException("Work days mask must select at least one weekday.");
         }
     }
 

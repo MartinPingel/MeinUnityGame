@@ -36,6 +36,7 @@ namespace Village.Npc
         private readonly int deliveryQuantity;
         private double productionRemaining;
         private readonly INpcWorkEquipment workEquipment;
+        private readonly INpcVisitRoute visitRoute;
         private readonly NpcSocialVenue socialVenue;
         private readonly NpcSocialSettings socialSettings;
         private bool seekingSocial;
@@ -92,7 +93,8 @@ namespace Village.Npc
             Func<bool> consumeFood = null, Func<bool> consumeDrink = null,
             INpcDeliveryInventory deliveryInventory = null, WorkDeliverySettings deliverySettings = null,
             INpcWorkEquipment workEquipment = null,
-            NpcSocialVenue socialVenue = null, NpcSocialSettings socialSettings = null)
+            NpcSocialVenue socialVenue = null, NpcSocialSettings socialSettings = null,
+            INpcVisitRoute visitRoute = null)
         {
             if (navigation == null) throw new ArgumentNullException(nameof(navigation));
             schedule.Validate();
@@ -102,6 +104,7 @@ namespace Village.Npc
             this.consumeFood = consumeFood;
             this.consumeDrink = consumeDrink;
             this.workEquipment = workEquipment;
+            this.visitRoute = visitRoute;
             if (socialVenue != null)
             {
                 if (!(navigation is INpcSocialNavigation) || socialSettings == null)
@@ -125,7 +128,8 @@ namespace Village.Npc
                 deliveryQuantity = deliverySettings.deliveryQuantity;
             }
             work = new WorkSchedule { startHour = schedule.startHour, endHour = schedule.endHour,
-                commuteBeforeWork = schedule.commuteBeforeWork, extendForBreaks = schedule.extendForBreaks };
+                commuteBeforeWork = schedule.commuteBeforeWork, extendForBreaks = schedule.extendForBreaks,
+                travelCountsAsWork = schedule.travelCountsAsWork, workDaysMask = schedule.workDaysMask };
             dailyTargetMinutes = ((work.endHour - work.startHour + 24) % 24) * 60d;
             supplies = new SupplySettings
             {
@@ -220,6 +224,7 @@ namespace Village.Npc
             public bool eating;
             public bool drinking;
             public bool working;
+            public bool atWorkplace;
             public bool wearing;
             public bool producing;
             public double satiationRate;
@@ -250,16 +255,23 @@ namespace Village.Npc
             bool travelling = route != null && nextPoint < route.Length;
             double travelSpeed = metresPerGameMinute * TravelMultiplier(CargoQuantity);
             bool eating = State == NpcState.Eating, drinking = State == NpcState.Drinking;
-            bool working = State == NpcState.Working && (workEquipment == null || workEquipment.CanWork);
+            bool atWorkplace = State == NpcState.Working && (workEquipment == null || workEquipment.CanWork);
+            // Opt-in (travelCountsAsWork): travel to the current work destination counts the
+            // same as standing at it, for WorkedMinutes, the working hunger/thirst rate and
+            // extendForBreaks. Tool wear/production below stay scoped to atWorkplace only.
+            bool working = atWorkplace || (work.travelCountsAsWork && State == NpcState.GoingToWork);
             // No wear while an input-dependent workplace is idle.
-            bool wearing = working && workEquipment != null &&
+            bool wearing = atWorkplace && workEquipment != null &&
                 !double.IsPositiveInfinity(workEquipment.MinutesUntilBreak) &&
                 (!(deliveryInventory is INpcProductionGate equipmentGate) || equipmentGate.CanProduce);
             if (wearing) step = Math.Min(step, workEquipment.MinutesUntilBreak);
             if (workEquipment is INpcToolSupply) step = Math.Min(step, 1d);
-            bool producing = deliveryInventory != null && working &&
+            bool producing = deliveryInventory != null && atWorkplace &&
                 (!(deliveryInventory is INpcProductionGate gate) || gate.CanProduce);
             if (producing) step = Math.Min(step, productionRemaining);
+            // Opt-in (visitRoute): cap the step to the remaining dwell time at the current
+            // timed stop, so the next Decide() re-evaluates and can advance to the next one.
+            if (atWorkplace && visitRoute != null) step = Math.Min(step, visitRoute.MinutesUntilNextStop);
             // Stop exactly when today's extended target is reached, rather than only at the
             // next boundary/need - which past the nominal end hour could be far in the future.
             if (working && work.extendForBreaks)
@@ -311,7 +323,7 @@ namespace Village.Npc
             {
                 Step = step, sleeping = sleeping, travelling = travelling,
                 travelSpeed = travelSpeed, eating = eating, drinking = drinking,
-                working = working, wearing = wearing, producing = producing,
+                working = working, atWorkplace = atWorkplace, wearing = wearing, producing = producing,
                 satiationRate = satiationRate, hydrationRate = hydrationRate, energyIn = energyIn, foodIn = foodIn,
                 waterIn = waterIn, arrivalIn = arrivalIn, socialising = socialising,
                 socialRate = socialRate, socialIn = socialIn, socialTarget = socialTarget
@@ -321,6 +333,7 @@ namespace Village.Npc
         internal void ApplyStep(StepFrame frame, double step)
         {
             if (frame.working) WorkedMinutes += step;
+            if (frame.atWorkplace && visitRoute != null) visitRoute.Consume(step);
             if (frame.producing)
             {
                 productionRemaining -= step;
@@ -431,6 +444,7 @@ namespace Village.Npc
             // transition into its nominal window, then track whether today's target is still short.
             bool isWorkTimeNow = work.IsWorkTime(TotalMinutes);
             if (work.extendForBreaks && isWorkTimeNow && !wasWorkWindow) shiftWorkBaseline = WorkedMinutes;
+            if (visitRoute != null && isWorkTimeNow && !wasWorkWindow) visitRoute.ResetForNewShift();
             wasWorkWindow = isWorkTimeNow;
             bool stillOwesWork = work.extendForBreaks && !isWorkTimeNow &&
                 WorkedMinutes - shiftWorkBaseline < dailyTargetMinutes - Epsilon;

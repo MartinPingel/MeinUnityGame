@@ -11,7 +11,7 @@ namespace Village.Npc
         public NpcPoint Entrance { get; }
         public NpcSocialVenue(NpcPoint entrance, NpcPoint[] places)
         {
-            if (places == null || places.Length < 2) throw new ArgumentException("Social venue needs at least two places.");
+            if (places == null || places.Length < 1) throw new ArgumentException("Social venue needs at least one place.");
             Entrance = entrance;
             this.places = (NpcPoint[])places.Clone();
         }

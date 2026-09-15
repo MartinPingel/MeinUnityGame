@@ -3,7 +3,7 @@ using System;
 namespace Village.Npc
 {
     public enum NpcState { Home, GoingToWork, Working, GoingHome, Sleeping,
-        GoingToEat, Eating, GoingToDrink, Drinking, GoingToDeliver, Delivering, GoingToCollect, Collecting, GoingToGetTool, CollectingTool, ReturningWithTool, UnloadingTool, GoingToSocial, WaitingForSocialPlace, WaitingForCompany, Socialising, WaitingForService, GoingToServicePickup, ServingGuest }
+        GoingToEat, Eating, GoingToDrink, Drinking, GoingToDeliver, Delivering, GoingToCollect, Collecting, GoingToGetTool, CollectingTool, ReturningWithTool, UnloadingTool, GoingToSocial, WaitingForSocialPlace, WaitingForCompany, Socialising, WaitingForService, GoingToServicePickup, ServingGuest, GoingToChurch, WaitingForChurchPlace, AtChurch }
 
     [Serializable]
     public sealed class WorkSchedule
@@ -22,6 +22,15 @@ namespace Village.Npc
         // Opt-in: restrict which weekdays this schedule is active on. Bit 0 = Monday
         // ... bit 6 = Sunday. Default = every day, preserving existing behavior.
         public int workDaysMask = 0b1111111;
+        // Opt-in: Sunday uses sundayStartHour/sundayEndHour instead of startHour/endHour,
+        // and never extends for breaks (see NpcSimulation). Off by default: an NPC without
+        // this keeps using startHour/endHour and its normal extendForBreaks on every day,
+        // Sunday included, exactly as before.
+        public bool sundayOverride;
+        public int sundayStartHour = 8;
+        public int sundayEndHour = 17;
+
+        private static bool IsSunday(double minutes) => (int)Math.Floor(minutes / 1440d) % 7 == 6; // day 0 = Monday
 
         public bool IsWorkTime(double minutes)
         {
@@ -30,11 +39,19 @@ namespace Village.Npc
                 int weekdayBit = (int)Math.Floor(minutes / 1440d) % 7; // day 0 = Monday
                 if ((workDaysMask & (1 << weekdayBit)) == 0) return false;
             }
+            bool sunday = sundayOverride && IsSunday(minutes);
+            int sh = sunday ? sundayStartHour : startHour;
+            int eh = sunday ? sundayEndHour : endHour;
             double hour = (minutes % 1440d) / 60d;
-            return startHour < endHour
-                ? hour >= startHour && hour < endHour
-                : hour >= startHour || hour < endHour;
+            return sh < eh
+                ? hour >= sh && hour < eh
+                : hour >= sh || hour < eh;
         }
+
+        // True while sundayOverride suppresses the normal extendForBreaks/elevated working
+        // rate for today (Sunday): the shorter Sunday shift must never be extended to catch
+        // up missed hours, and must never trigger a mid-shift meal break.
+        internal bool SuppressesExtendedWork(double minutes) => sundayOverride && IsSunday(minutes);
 
         public double NextBoundary(double minutes)
         {
@@ -52,6 +69,9 @@ namespace Village.Npc
                 throw new ArgumentException("Work hours must be distinct hours between 0 and 23.");
             if (workDaysMask <= 0 || workDaysMask > 0b1111111)
                 throw new ArgumentException("Work days mask must select at least one weekday.");
+            if (sundayOverride && (sundayStartHour < 0 || sundayStartHour > 23 ||
+                sundayEndHour < 0 || sundayEndHour > 23 || sundayStartHour == sundayEndHour))
+                throw new ArgumentException("Sunday work hours must be distinct hours between 0 and 23.");
         }
     }
 

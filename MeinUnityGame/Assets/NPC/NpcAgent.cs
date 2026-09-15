@@ -35,6 +35,12 @@ public sealed class NpcAgent : MonoBehaviour
     [SerializeField] private Transform[] visitStops;
     [SerializeField, Min(0f)] private float visitStopMinutes = 10f;
 
+    [Header("Gottesdienst (optional)")]
+    [Tooltip("Gemeinsame Kirchenbank-Platzverwaltung und Sonntagszeit. Fuer alle Teilnehmer gleich.")]
+    [SerializeField] private NpcChurchAssembly churchAssembly;
+    [Tooltip("Nur beim Pfarrer gesetzt: sein fester Platz an der Kanzel statt eines Kirchenbank-Platzes.")]
+    [SerializeField] private Transform churchOwnSpot;
+
     public WorkplaceTools WorkTools => workToolWarehouse != null ? workToolWarehouse.Tools : null;
 
     [Header("Arbeit, Energie und Versorgung - vor Play einstellen")]
@@ -56,6 +62,7 @@ public sealed class NpcAgent : MonoBehaviour
     public string TargetName => simulation == null ? "Nicht bereit" :
         simulation.Target == NpcPlace.Service ? socialMeeting.GetServiceTargetName(this) :
         simulation.Target == NpcPlace.Social ? "Biergarten" :
+        simulation.Target == NpcPlace.Church ? "Kirche" :
         simulation.Target == NpcPlace.ToolPickup ? "Marktstand (Werkzeug)" :
         simulation.Target == NpcPlace.Tavern ? "Taverne" :
         simulation.Target == NpcPlace.Well ? "Brunnen" :
@@ -88,17 +95,25 @@ public sealed class NpcAgent : MonoBehaviour
                         if (place.Clock == clock) { socialMeeting = place; break; }
                 INpcVisitRoute visitRoute = visitStops != null && visitStops.Length > 0
                     ? new VisitRoute(visitStops, workplace, visitStopMinutes) : null;
+                // Ground-level regardless of the marker's own height (e.g. a raised Kanzel
+                // platform), so the point lands exactly on the church's floor-level aisle strip.
+                NpcSocialVenue churchVenue = churchAssembly == null ? null
+                    : churchOwnSpot != null
+                        ? new NpcSocialVenue(churchAssembly.EntrancePoint, new[] { ToChurchFloorPoint(churchOwnSpot) })
+                        : churchAssembly.Venue;
+                WorkSchedule churchSchedule = churchAssembly != null ? churchAssembly.Schedule : null;
                 var navigation = new SceneNavigation(roadRoot, home, workplace, tavern, well,
                     deliveryJob != null ? deliveryJob.DeliveryPoint : null,
                     deliveryJob != null ? deliveryJob.PickupPoint : null, toolPickupPoint, socialMeeting,
-                    visitRoute);
+                    visitRoute, churchVenue != null);
                 simulation = new NpcSimulation(navigation, work, fatigue, supplies,
                     null, null, // Stock is consumed only by NpcTavernService at handover.
                     deliveryJob, deliveryJob != null ? deliveryJob.Settings : null,
                     workToolWarehouse != null ? new WorkEquipment(workToolWarehouse, toolSourceWarehouse) : null,
                     socialMeeting != null ? socialMeeting.Venue : null,
                     socialMeeting != null ? social : null,
-                    visitRoute);
+                    visitRoute,
+                    churchVenue, churchSchedule);
             }
             // Initialization and re-enabling catch up from the same baseline; nothing is reset.
             if (socialMeeting != null) socialMeeting.Register(this);
@@ -146,6 +161,12 @@ public sealed class NpcAgent : MonoBehaviour
 
     private static Vector3 ToVector(NpcPoint point) => new Vector3((float)point.X, (float)point.Y, (float)point.Z);
     private static NpcPoint ToPoint(Vector3 point) => new NpcPoint(point.x, point.y, point.z);
+    // The church's own floor-level walkway sits at y=0.04 (matching every other outdoor path
+    // point); a spot marker positioned above ground (e.g. standing on a raised Kanzel) is
+    // projected back down onto that walkway, so it lands exactly on the routable aisle strip.
+    private const float ChurchFloorHeight = 0.04f;
+    private static NpcPoint ToChurchFloorPoint(Transform t) =>
+        new NpcPoint(t.position.x, ChurchFloorHeight, t.position.z);
 
     private sealed class WorkEquipment : INpcToolSupply
     {
@@ -215,7 +236,8 @@ public sealed class NpcAgent : MonoBehaviour
     }
 
     /// <summary>Read-only adapter to the unchanged village road router.</summary>
-    private sealed class SceneNavigation : INpcNavigation, INpcSocialNavigation, INpcServiceNavigation, INpcRestockNavigation
+    private sealed class SceneNavigation : INpcNavigation, INpcSocialNavigation, INpcServiceNavigation,
+        INpcRestockNavigation, INpcChurchNavigation
     {
         private readonly Transform roads;
         private readonly NpcPoint[] places;
@@ -224,10 +246,11 @@ public sealed class NpcAgent : MonoBehaviour
         public void SetRestockPickup(NpcPoint point) => places[(int)NpcPlace.Pickup] = point;
         public void SetServiceDestination(NpcPoint point) => places[(int)NpcPlace.Service] = point;
         public void SetSocialDestination(NpcPoint point) => places[(int)NpcPlace.Social] = point;
+        public void SetChurchDestination(NpcPoint point) => places[(int)NpcPlace.Church] = point;
 
         public SceneNavigation(Transform roads, Transform home, Transform work, Transform tavern, Transform well,
             Transform deliveryPoint = null, Transform pickupPoint = null, Transform toolPoint = null,
-            NpcSocialMeetingPlace meeting = null, INpcVisitRoute visitRoute = null)
+            NpcSocialMeetingPlace meeting = null, INpcVisitRoute visitRoute = null, bool hasChurch = false)
         {
             this.roads = roads;
             this.meeting = meeting;
@@ -237,7 +260,8 @@ public sealed class NpcAgent : MonoBehaviour
                 ToPoint(deliveryPoint != null ? deliveryPoint.position : work.position),
                 ToPoint(pickupPoint != null ? pickupPoint.position : work.position),
                 ToPoint(toolPoint != null ? toolPoint.position : work.position),
-                meeting != null ? meeting.Venue.Entrance : ToPoint(tavern.position), ToPoint(tavern.position) };
+                meeting != null ? meeting.Venue.Entrance : ToPoint(tavern.position), ToPoint(tavern.position),
+                ToPoint(work.position) };
             // Fail at initialization if any required place is disconnected.
             foreach (NpcPlace place in Enum.GetValues(typeof(NpcPlace)))
             {
@@ -245,6 +269,7 @@ public sealed class NpcAgent : MonoBehaviour
                 if (place == NpcPlace.Pickup && pickupPoint == null) continue;
                 if (place == NpcPlace.ToolPickup && toolPoint == null) continue;
                 if (place == NpcPlace.Social && meeting == null) continue;
+                if (place == NpcPlace.Church && !hasChurch) continue;
                 FindRoute(places[0], place);
             }
         }

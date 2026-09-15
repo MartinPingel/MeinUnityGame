@@ -41,6 +41,10 @@ namespace Village.Npc
         private readonly NpcSocialSettings socialSettings;
         private bool seekingSocial;
         private int socialSlot = -1;
+        private readonly NpcSocialVenue churchVenue;
+        private readonly WorkSchedule churchSchedule;
+        private int churchSlot = -1;
+        public int ChurchSlot => churchSlot;
         public double Social { get; private set; } = 100d;
         public bool NeedsSocial => seekingSocial;
         public int SocialSlot => socialSlot;
@@ -94,7 +98,8 @@ namespace Village.Npc
             INpcDeliveryInventory deliveryInventory = null, WorkDeliverySettings deliverySettings = null,
             INpcWorkEquipment workEquipment = null,
             NpcSocialVenue socialVenue = null, NpcSocialSettings socialSettings = null,
-            INpcVisitRoute visitRoute = null)
+            INpcVisitRoute visitRoute = null,
+            NpcSocialVenue churchVenue = null, WorkSchedule churchSchedule = null)
         {
             if (navigation == null) throw new ArgumentNullException(nameof(navigation));
             schedule.Validate();
@@ -105,6 +110,14 @@ namespace Village.Npc
             this.consumeDrink = consumeDrink;
             this.workEquipment = workEquipment;
             this.visitRoute = visitRoute;
+            if (churchVenue != null)
+            {
+                if (!(navigation is INpcChurchNavigation) || churchSchedule == null)
+                    throw new ArgumentException("Church attendee needs church navigation and a schedule.");
+                churchSchedule.Validate();
+                this.churchVenue = churchVenue;
+                this.churchSchedule = churchSchedule;
+            }
             if (socialVenue != null)
             {
                 if (!(navigation is INpcSocialNavigation) || socialSettings == null)
@@ -129,7 +142,9 @@ namespace Village.Npc
             }
             work = new WorkSchedule { startHour = schedule.startHour, endHour = schedule.endHour,
                 commuteBeforeWork = schedule.commuteBeforeWork, extendForBreaks = schedule.extendForBreaks,
-                travelCountsAsWork = schedule.travelCountsAsWork, workDaysMask = schedule.workDaysMask };
+                travelCountsAsWork = schedule.travelCountsAsWork, workDaysMask = schedule.workDaysMask,
+                sundayOverride = schedule.sundayOverride, sundayStartHour = schedule.sundayStartHour,
+                sundayEndHour = schedule.sundayEndHour };
             dailyTargetMinutes = ((work.endHour - work.startHour + 24) % 24) * 60d;
             supplies = new SupplySettings
             {
@@ -244,6 +259,9 @@ namespace Village.Npc
             double nextMidnight = (Math.Floor(TotalMinutes / 1440d) + 1d) * 1440d;
             double step = Math.Min(targetMinutes - TotalMinutes,
                 Math.Min(work.NextBoundary(TotalMinutes), nextMidnight) - TotalMinutes);
+            // Opt-in (churchSchedule): also stop exactly at the service's start/end, so a
+            // large jump never skips straight over the 10:00-11:00 window unevaluated.
+            if (churchSchedule != null) step = Math.Min(step, churchSchedule.NextBoundary(TotalMinutes) - TotalMinutes);
             if (commuteMinutes > 0d)
             {
                 double departure = Math.Floor(TotalMinutes / 1440d) * 1440d
@@ -272,9 +290,13 @@ namespace Village.Npc
             // Opt-in (visitRoute): cap the step to the remaining dwell time at the current
             // timed stop, so the next Decide() re-evaluates and can advance to the next one.
             if (atWorkplace && visitRoute != null) step = Math.Min(step, visitRoute.MinutesUntilNextStop);
+            // Opt-in (WorkSchedule.sundayOverride): today's shorter Sunday shift never
+            // extends to catch up missed hours and never triggers the elevated-rate meal
+            // break - both stay fully active on every other day, unaffected.
+            bool extendSuppressedToday = work.SuppressesExtendedWork(TotalMinutes);
             // Stop exactly when today's extended target is reached, rather than only at the
             // next boundary/need - which past the nominal end hour could be far in the future.
-            if (working && work.extendForBreaks)
+            if (working && work.extendForBreaks && !extendSuppressedToday)
                 step = Math.Min(step, Math.Max(Epsilon, dailyTargetMinutes - (WorkedMinutes - shiftWorkBaseline)));
             // Only real production receives the hunger surcharge. Needs, travel,
             // idle shifts and missing inputs/tools retain the ordinary rate.
@@ -282,10 +304,10 @@ namespace Village.Npc
             // per-hour rates that, when set, fully replace the ordinary rate while State ==
             // Working - independent of production gating, unlike productiveSatiationMultiplier.
             // Off-work (including sleep) always keeps the ordinary base rate, unaffected.
-            double satiationRate = working && supplies.workingSatiationLossPerHour > 0d
+            double satiationRate = working && supplies.workingSatiationLossPerHour > 0d && !extendSuppressedToday
                 ? supplies.workingSatiationLossPerHour
                 : supplies.satiationLossPerHour * (producing ? supplies.productiveSatiationMultiplier : 1d);
-            double hydrationRate = working && supplies.workingHydrationLossPerHour > 0d
+            double hydrationRate = working && supplies.workingHydrationLossPerHour > 0d && !extendSuppressedToday
                 ? supplies.workingHydrationLossPerHour
                 : supplies.hydrationLossPerHour;
             if (State == NpcState.Delivering) step = Math.Min(step, 1d);
@@ -405,6 +427,12 @@ namespace Village.Npc
             if (State == NpcState.Socialising) State = NpcState.WaitingForCompany;
         }
 
+        public void ReleaseChurchPlace()
+        {
+            if (churchVenue != null) churchVenue.Release(this);
+            churchSlot = -1;
+        }
+
         private double TravelMultiplier(int cargo)
         {
             double multiplier = deliveryInventory is INpcTravelSpeed speed
@@ -443,10 +471,14 @@ namespace Village.Npc
             // extendForBreaks: reset the owed-minutes baseline exactly once per shift, at the
             // transition into its nominal window, then track whether today's target is still short.
             bool isWorkTimeNow = work.IsWorkTime(TotalMinutes);
-            if (work.extendForBreaks && isWorkTimeNow && !wasWorkWindow) shiftWorkBaseline = WorkedMinutes;
+            // sundayOverride: suppressed today means extendForBreaks behaves as if off, so a
+            // shortened Sunday shift never captures/uses a catch-up baseline for itself and
+            // never carries a false "still owes work" debt into the following day.
+            bool extendActiveNow = work.extendForBreaks && !work.SuppressesExtendedWork(TotalMinutes);
+            if (extendActiveNow && isWorkTimeNow && !wasWorkWindow) shiftWorkBaseline = WorkedMinutes;
             if (visitRoute != null && isWorkTimeNow && !wasWorkWindow) visitRoute.ResetForNewShift();
             wasWorkWindow = isWorkTimeNow;
-            bool stillOwesWork = work.extendForBreaks && !isWorkTimeNow &&
+            bool stillOwesWork = extendActiveNow && !isWorkTimeNow &&
                 WorkedMinutes - shiftWorkBaseline < dailyTargetMinutes - Epsilon;
             // Water carried to the tavern is unloaded even when the arrival was a need detour.
             // This is opt-in: farm/smith deliveries retain their existing behavior.
@@ -487,6 +519,17 @@ namespace Village.Npc
             if (seekingWater) SetSupplyGoal(true);
             else if (seekingFood) SetSupplyGoal(false);
             else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
+            // Opt-in (churchVenue): a scheduled service outranks work, restocking, tavern
+            // service, tools and cargo alike, for every attendee, for its whole duration.
+            else if (churchVenue != null && churchSchedule.IsWorkTime(TotalMinutes))
+            {
+                int previousSlot = churchSlot;
+                churchSlot = churchVenue.Reserve(this);
+                if (churchSlot != previousSlot) route = null;
+                ((INpcChurchNavigation)navigation).SetChurchDestination(churchVenue.GetPlace(churchSlot));
+                SetGoal(NpcPlace.Church, NpcState.GoingToChurch,
+                    churchSlot < 0 ? NpcState.WaitingForChurchPlace : NpcState.AtChurch);
+            }
             else if (restock != null && work.IsWorkTime(TotalMinutes) && TryRestock(null)) { }
             else if (seekingSocial && !IsInnkeeper && !isWorkTimeNow && !stillOwesWork)
             {
@@ -613,6 +656,7 @@ namespace Village.Npc
         internal NpcTavernService TavernService { get; set; }
         internal NpcPoint TavernPoint => navigation.GetPlace(NpcPlace.Tavern);
         internal bool CanServeTavern => work.IsWorkTime(TotalMinutes) &&
+            !(churchVenue != null && churchSchedule.IsWorkTime(TotalMinutes)) &&
             !seekingFood && !seekingWater && !seekingRest && (!seekingSocial || IsInnkeeper) &&
             CargoQuantity == 0 && ToolCargoQuantity == 0 &&
             !(deliveryInventory is INpcPriorityRestock restock && restock.HasAvailableSupply);
@@ -672,6 +716,7 @@ namespace Village.Npc
             if (destination != NpcPlace.Social && socialSlot >= 0 &&
                 !(destination == NpcPlace.Service && TavernService != null && TavernService.IsOwnOrder(this)))
                 ReleaseSocialPlace();
+            if (destination != NpcPlace.Church && churchSlot >= 0) ReleaseChurchPlace();
             if (NpcPoint.Distance(Position, navigation.GetPlace(destination)) < Epsilon)
             {
                 Position = navigation.GetPlace(destination);

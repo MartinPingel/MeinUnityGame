@@ -2,7 +2,7 @@ using System;
 
 namespace Village.Npc
 {
-    public enum NpcPlace { Home, Work, Tavern, Well, Delivery, Pickup, ToolPickup, Social, Service }
+    public enum NpcPlace { Home, Work, Tavern, Well, Delivery, Pickup, ToolPickup, Social, Service, Church }
 
     /// <summary>Unity-independent position used by the time simulation.</summary>
     public struct NpcPoint
@@ -26,6 +26,13 @@ namespace Village.Npc
     {
         NpcPoint GetPlace(NpcPlace place);
         NpcPoint[] FindRoute(NpcPoint from, NpcPlace destination);
+    }
+
+    /// <summary>Optional: lets the simulation pick which reserved church seat/spot the
+    /// Church place currently resolves to. Mirrors INpcSocialNavigation.</summary>
+    public interface INpcChurchNavigation
+    {
+        void SetChurchDestination(NpcPoint point);
     }
 
     // Preserves the original home/work-only constructor for existing callers/tests.

@@ -266,13 +266,16 @@ namespace Village.Npc
                 step = Math.Min(step, Math.Max(Epsilon, dailyTargetMinutes - (WorkedMinutes - shiftWorkBaseline)));
             // Only real production receives the hunger surcharge. Needs, travel,
             // idle shifts and missing inputs/tools retain the ordinary rate.
-            // workingSatiationLossPerHour/workingHydrationLossPerHour are opt-in additions
-            // (default 0) tied to State == Working itself, independent of production gating -
-            // unlike productiveSatiationMultiplier, they also apply to non-producing workers.
-            double satiationRate = supplies.satiationLossPerHour *
-                (producing ? supplies.productiveSatiationMultiplier : 1d) +
-                (working ? supplies.workingSatiationLossPerHour : 0d);
-            double hydrationRate = supplies.hydrationLossPerHour + (working ? supplies.workingHydrationLossPerHour : 0d);
+            // workingSatiationLossPerHour/workingHydrationLossPerHour are opt-in (default 0)
+            // per-hour rates that, when set, fully replace the ordinary rate while State ==
+            // Working - independent of production gating, unlike productiveSatiationMultiplier.
+            // Off-work (including sleep) always keeps the ordinary base rate, unaffected.
+            double satiationRate = working && supplies.workingSatiationLossPerHour > 0d
+                ? supplies.workingSatiationLossPerHour
+                : supplies.satiationLossPerHour * (producing ? supplies.productiveSatiationMultiplier : 1d);
+            double hydrationRate = working && supplies.workingHydrationLossPerHour > 0d
+                ? supplies.workingHydrationLossPerHour
+                : supplies.hydrationLossPerHour;
             if (State == NpcState.Delivering) step = Math.Min(step, 1d);
             double energyIn = sleeping ? (wakeEnergy - Energy) / (energyRecovery / 60d)
                 : !seekingRest ? (Energy - sleepEnergy) / (energyLoss / 60d) : double.PositiveInfinity;

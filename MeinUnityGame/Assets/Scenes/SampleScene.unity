@@ -29492,9 +29492,12 @@ MonoBehaviour:
     aloneRecoveryMultiplier: 0.5
     satisfiedValue: 100
   work:
-    startHour: 10
-    endHour: 23
+    startHour: 8
+    endHour: 21
     commuteBeforeWork: 1
+    sundayOverride: 1
+    sundayStartHour: 10
+    sundayEndHour: 23
   fatigue:
     initialFatigue: 72
     gainPerAwakeHour: 4

@@ -4526,7 +4526,6 @@ MonoBehaviour:
     aloneRecoveryMultiplier: 0.5
     satisfiedValue: 100
   work:
-    breakfastEnabled: 1
     startHour: 10
     endHour: 23
     commuteBeforeWork: 1
@@ -29502,7 +29501,6 @@ MonoBehaviour:
     aloneRecoveryMultiplier: 0.5
     satisfiedValue: 100
   work:
-    breakfastEnabled: 1
     startHour: 7
     endHour: 21
     commuteBeforeWork: 1
@@ -39931,7 +39929,6 @@ MonoBehaviour:
     aloneRecoveryMultiplier: 0.5
     satisfiedValue: 100
   work:
-    breakfastEnabled: 1
     startHour: 6
     endHour: 17
     commuteBeforeWork: 1

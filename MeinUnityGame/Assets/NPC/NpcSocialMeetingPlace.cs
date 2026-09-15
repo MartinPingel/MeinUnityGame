@@ -108,8 +108,12 @@ public sealed class NpcSocialMeetingPlace : MonoBehaviour
         if (agents.Contains(agent)) return;
         int waiterIndex = additionalWaiters != null ? Array.IndexOf(additionalWaiters, agent) : -1;
         Service.Register(agent.Simulation, agent == innkeeper, waiterIndex < 0);
-        if (waiterIndex >= 0)
-            waiterServices[waiterIndex].Register(agent.Simulation, true, true);
+        // Every waiter service needs every agent in its own guest list (not just its own
+        // waiter) so each waiter can find and serve any guest; isWaiter/attachService stay
+        // true only for that service's own waiter, exactly like the innkeeper's primary Service.
+        for (int i = 0; i < waiterServices.Count; i++)
+            if (waiterServices[i] != null)
+                waiterServices[i].Register(agent.Simulation, i == waiterIndex, i == waiterIndex);
         group.Add(agent.Simulation, () => agent.GameMetresPerMinute);
         group.PrepareServices = UpdateServices;
         agents.Add(agent);
@@ -119,8 +123,8 @@ public sealed class NpcSocialMeetingPlace : MonoBehaviour
         if (agents.Remove(agent))
         {
             Service.Remove(agent.Simulation);
-            int waiterIndex = additionalWaiters != null ? Array.IndexOf(additionalWaiters, agent) : -1;
-            if (waiterIndex >= 0) waiterServices[waiterIndex].Remove(agent.Simulation);
+            foreach (NpcTavernService waiterService in waiterServices)
+                if (waiterService != null) waiterService.Remove(agent.Simulation);
             group.Remove(agent.Simulation);
         }
     }

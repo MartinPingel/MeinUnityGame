@@ -39929,8 +39929,8 @@ MonoBehaviour:
     aloneRecoveryMultiplier: 0.5
     satisfiedValue: 100
   work:
-    startHour: 6
-    endHour: 17
+    startHour: 23
+    endHour: 10
     commuteBeforeWork: 1
   fatigue:
     initialFatigue: 72

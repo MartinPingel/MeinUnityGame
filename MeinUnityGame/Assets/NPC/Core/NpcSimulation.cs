@@ -16,9 +16,16 @@ namespace Village.Npc
         private readonly WorkSchedule work;
         private readonly SupplySettings supplies;
         private readonly INpcNavigation navigation;
-        private readonly double energyLoss, energyRecovery, sleepEnergy, wakeEnergy;
+        private readonly double energyLoss, sleepEnergy, wakeEnergy;
         private bool seekingRest, seekingFood, seekingWater;
         private double lastWaiterClosingRest = -1d;
+        // Fixed rule for every NPC: a full sleep always lasts exactly this many minutes
+        // (8 game hours), regenerating Energy continuously and linearly from whatever it was
+        // at the start of THIS sleep to exactly 100 at the end - never early, never over 100,
+        // regardless of FatigueSettings. Captured once per sleep (see SetGoal/constructor).
+        private const double FullSleepMinutes = 480d;
+        private double sleepSessionStart = double.NegativeInfinity;
+        private double energyAtSleepStart;
         // extendForBreaks bookkeeping: minutes owed for the current shift, and the worked-minutes
         // baseline captured at its start. Unused (stays 0/false) unless a WorkSchedule opts in.
         private readonly double dailyTargetMinutes;
@@ -167,7 +174,6 @@ namespace Village.Npc
             };
             Energy = 100d - settings.initialFatigue;
             energyLoss = settings.gainPerAwakeHour;
-            energyRecovery = settings.recoveryPerSleepHour;
             sleepEnergy = 100d - settings.sleepThreshold;
             wakeEnergy = 100d - settings.wakeThreshold;
             Satiation = supplies.initialSatiation;
@@ -181,6 +187,9 @@ namespace Village.Npc
             RouteLength = workDistance;
             State = NpcState.Sleeping;
             seekingRest = Energy < wakeEnergy - Epsilon;
+            // Bootstraps the very first sleep session directly (State starts as Sleeping
+            // without going through SetGoal, unlike every later sleep).
+            if (seekingRest) { sleepSessionStart = TotalMinutes; energyAtSleepStart = Energy; }
             Decide();
         }
 
@@ -249,6 +258,7 @@ namespace Village.Npc
             public bool producing;
             public double satiationRate;
             public double hydrationRate;
+            public double sleepEnergyRate;
             public double energyIn;
             public double foodIn;
             public double waterIn;
@@ -320,7 +330,11 @@ namespace Village.Npc
                 ? supplies.workingHydrationLossPerHour
                 : supplies.hydrationLossPerHour;
             if (State == NpcState.Delivering) step = Math.Min(step, 1d);
-            double energyIn = sleeping ? (wakeEnergy - Energy) / (energyRecovery / 60d)
+            // Fixed rule: while sleeping, Energy always regenerates linearly toward exactly 100
+            // over exactly FullSleepMinutes from wherever it stood at the start of this sleep -
+            // never early (energyIn only depends on elapsed time, not on Energy itself).
+            double sleepEnergyRate = sleeping ? (100d - energyAtSleepStart) / FullSleepMinutes : 0d;
+            double energyIn = sleeping ? Math.Max(Epsilon, sleepSessionStart + FullSleepMinutes - TotalMinutes)
                 : !seekingRest ? (Energy - sleepEnergy) / (energyLoss / 60d) : double.PositiveInfinity;
             double foodIn = !seekingFood && satiationRate > 0d
                 ? (Satiation - supplies.hungerThreshold) / (satiationRate / 60d)
@@ -355,7 +369,8 @@ namespace Village.Npc
                 Step = step, sleeping = sleeping, travelling = travelling,
                 travelSpeed = travelSpeed, eating = eating, drinking = drinking,
                 working = working, atWorkplace = atWorkplace, wearing = wearing, producing = producing,
-                satiationRate = satiationRate, hydrationRate = hydrationRate, energyIn = energyIn, foodIn = foodIn,
+                satiationRate = satiationRate, hydrationRate = hydrationRate, sleepEnergyRate = sleepEnergyRate,
+                energyIn = energyIn, foodIn = foodIn,
                 waterIn = waterIn, arrivalIn = arrivalIn, socialising = socialising,
                 socialRate = socialRate, socialIn = socialIn, socialTarget = socialTarget
             };
@@ -378,10 +393,12 @@ namespace Village.Npc
             // No wear on walks, deliveries, need detours, sleep or time without a usable tool.
             if (frame.wearing) workEquipment.Wear(step);
             if (frame.sleeping) SleptMinutes += step;
-            Energy = Clamp(Energy + step * (frame.sleeping ? energyRecovery : -energyLoss) / 60d);
+            Energy = Clamp(Energy + (frame.sleeping ? step * frame.sleepEnergyRate : -step * energyLoss / 60d));
             Satiation = Clamp(Satiation - step * frame.satiationRate / 60d);
             Hydration = Clamp(Hydration - step * frame.hydrationRate / 60d);
-            if (step == frame.energyIn) Energy = frame.sleeping ? wakeEnergy : sleepEnergy;
+            // Exact snap at the end of a full 8-hour sleep: 100, never higher, regardless of
+            // any floating-point drift accumulated across the linear ramp above.
+            if (step == frame.energyIn) Energy = frame.sleeping ? 100d : sleepEnergy;
             if (step == frame.foodIn) Satiation = supplies.hungerThreshold;
             if (step == frame.waterIn) Hydration = supplies.thirstThreshold;
             if (frame.travelling)
@@ -456,7 +473,10 @@ namespace Village.Npc
             if (Hydration <= supplies.thirstThreshold + Epsilon) seekingWater = true;
             if (Satiation <= supplies.hungerThreshold + Epsilon) seekingFood = true;
             if (Energy <= sleepEnergy + Epsilon) seekingRest = true;
-            if (State == NpcState.Sleeping && Energy >= wakeEnergy - Epsilon) seekingRest = false;
+            // Fixed rule: wake only once the full 8 hours have elapsed - never early just
+            // because Energy has already reached 100 (it never does before then, by construction).
+            if (State == NpcState.Sleeping && TotalMinutes >= sleepSessionStart + FullSleepMinutes - Epsilon)
+                seekingRest = false;
             // Opt-in (WorkSchedule.breakfastEnabled): a fixed Monday-Saturday breakfast hour
             // immediately before startHour, requesting both food and drink through the exact
             // same hunger/thirst-driven tavern visit as any other need - edge-triggered once
@@ -739,8 +759,13 @@ namespace Village.Npc
                 route = null;
                 nextPoint = 0;
                 if (State != arrivalState)
+                {
                     serviceRemaining = arrivalState == NpcState.Eating ? supplies.eatingMinutes
                         : arrivalState == NpcState.Drinking ? supplies.drinkingMinutes : 0d;
+                    // Every fresh entry into Sleeping (after the constructor's own bootstrap
+                    // one) starts a new fixed 8-hour session from Energy as it stands now.
+                    if (arrivalState == NpcState.Sleeping) { sleepSessionStart = TotalMinutes; energyAtSleepStart = Energy; }
+                }
                 Target = destination;
                 State = arrivalState;
                 return;

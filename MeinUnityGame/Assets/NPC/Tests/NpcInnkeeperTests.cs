@@ -51,6 +51,11 @@ public sealed class NpcInnkeeperTests
         Assert.That(npc.State, Is.EqualTo(NpcState.GoingHome));
         Assert.That(npc.Target, Is.EqualTo(NpcPlace.Home));
         npc.AdvanceTo(1389d, 7.5d);
+        // Arrived home, but the higher post-sleep Energy target (100, not 84) leaves more
+        // stamina margin than before, so fatigue-triggered sleep starts later than arrival.
+        Assert.That(npc.State, Is.EqualTo(NpcState.Home));
+        Assert.That(npc.DistanceFromHome, Is.Zero);
+        npc.AdvanceTo(1680d, 7.5d);
         Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
         Assert.That(npc.DistanceFromHome, Is.Zero);
     }
@@ -88,19 +93,29 @@ public sealed class NpcInnkeeperTests
     {
         var npc = Create(false);
         Assert.That(npc.RouteLength, Is.Zero);
-        npc.AdvanceTo(420d, 7.5d);
+        npc.AdvanceTo(480d, 7.5d);
+        // Exactly 8 hours after going to sleep at Energy 28: exactly 100 now, and since work
+        // (10:00) hasn't started yet, the innkeeper just waits at home awake.
         Assert.That(npc.State, Is.EqualTo(NpcState.Home));
-        Assert.That(npc.Energy, Is.EqualTo(84d).Within(1e-7));
+        Assert.That(npc.Energy, Is.EqualTo(100d).Within(1e-7));
         npc.AdvanceTo(600d, 7.5d);
         Assert.That(npc.State, Is.EqualTo(NpcState.Working));
         npc.AdvanceTo(1379d, 7.5d);
         Assert.That(npc.State, Is.EqualTo(NpcState.Working));
         npc.AdvanceTo(1380d, 7.5d);
-        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
+        // The higher post-sleep Energy target leaves more stamina margin than before, so the
+        // innkeeper is merely home awake at shift end, not yet fatigued enough to sleep again.
+        Assert.That(npc.State, Is.EqualTo(NpcState.Home));
         Assert.That(npc.WorkedMinutes, Is.EqualTo(780d).Within(1e-7));
         Assert.That(npc.TravelledMetres, Is.Zero);
-        npc.AdvanceTo(1860d, 7.5d);
-        Assert.That(npc.State, Is.EqualTo(NpcState.Home));
+        npc.AdvanceTo(1680d, 7.5d);
+        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
+        Assert.That(npc.Energy, Is.EqualTo(20d).Within(1e-7));
+        npc.AdvanceTo(2160d, 7.5d);
+        // A second full fixed 8-hour sleep ends at exactly 100 again, and since it's already
+        // work time (12:00) by then, work resumes immediately.
+        Assert.That(npc.State, Is.EqualTo(NpcState.Working));
+        Assert.That(npc.Energy, Is.EqualTo(100d).Within(1e-7));
     }
 
     [Test]

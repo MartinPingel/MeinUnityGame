@@ -37,12 +37,15 @@ public sealed class NpcSupplyTests
         Assert.That(npc.Satiation, Is.EqualTo(100d));
         Assert.That(npc.Hydration, Is.EqualTo(100d));
         npc.AdvanceTo(360d, 7.5d);
+        // Still asleep: the fixed 8-hour sleep hasn't elapsed yet (started at Energy 36, ends
+        // at exactly 100 at minute 480). Satiation/Hydration decay is unrelated to sleep and
+        // keeps running on elapsed time alone, unaffected.
         Assert.That(npc.Energy, Is.EqualTo(84d).Within(1e-7));
         Assert.That(npc.Satiation, Is.EqualTo(88d).Within(1e-7));
         Assert.That(npc.Hydration, Is.EqualTo(76d).Within(1e-7));
         npc.AdvanceTo(600d, 7.5d);
         Assert.That(npc.State, Is.EqualTo(NpcState.Working));
-        Assert.That(npc.Energy, Is.EqualTo(68d).Within(1e-7));
+        Assert.That(npc.Energy, Is.EqualTo(92d).Within(1e-7));
         Assert.That(npc.Hydration, Is.EqualTo(60d).Within(1e-7));
     }
 

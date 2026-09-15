@@ -30,39 +30,43 @@ public sealed class NpcSimulationTests
     }
 
     [Test]
-    public void MidnightSleepAndWakeAreAccountedFor()
+    public void SleepAlwaysLastsEightHoursAndEndsAtExactlyFullEnergy()
     {
         var npc = Create();
         Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
+        Assert.That(npc.Fatigue, Is.EqualTo(64d));
         npc.AdvanceTo(360d, 7.5d);
-        Assert.That(npc.State, Is.EqualTo(NpcState.Home));
-        Assert.That(npc.Fatigue, Is.EqualTo(16d).Within(1e-7));
-        npc.AdvanceTo(1320d, 7.5d);
+        // Still short of the fixed 8 hours: regenerating continuously, but not yet full.
         Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
-        npc.AdvanceTo(1440d, 7.5d);
-        Assert.That(npc.Fatigue, Is.EqualTo(64d).Within(1e-7));
+        Assert.That(npc.Energy, Is.EqualTo(84d).Within(1e-7));
+        npc.AdvanceTo(480d, 7.5d);
+        // Exactly 8 hours after going to sleep with Energy 36: exactly 100 now, never early.
+        Assert.That(npc.Energy, Is.EqualTo(100d).Within(1e-7));
         Assert.That(npc.SleptMinutes, Is.EqualTo(480d).Within(1e-7));
-        npc.AdvanceTo(1800d, 7.5d);
-        Assert.That(npc.State, Is.EqualTo(NpcState.Home));
-        Assert.That(npc.Fatigue, Is.EqualTo(16d).Within(1e-7));
+        npc.AdvanceTo(1680d, 7.5d);
+        // A second sleep, from a much lower rest value (20), still runs the full fixed
+        // 8 hours rather than any shorter recovery-rate-based duration.
+        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
+        Assert.That(npc.Energy, Is.EqualTo(20d).Within(1e-7));
+        npc.AdvanceTo(2160d, 7.5d);
+        Assert.That(npc.Energy, Is.EqualTo(100d).Within(1e-7));
+        Assert.That(npc.SleptMinutes, Is.EqualTo(960d).Within(1e-7));
     }
 
     [Test]
     public void SevereFatigueOverridesWorkAndSleepRequiresGettingHome()
     {
         var npc = Create(fatigue: new FatigueSettings { gainPerAwakeHour = 12d });
-        npc.AdvanceTo(680d, 7.5d);
+        npc.AdvanceTo(890d, 7.5d);
         Assert.That(npc.IsWorkTime, Is.True);
         Assert.That(npc.State, Is.EqualTo(NpcState.GoingHome));
-        npc.AdvanceTo(690d, 7.5d);
-        Assert.That(npc.State, Is.EqualTo(NpcState.GoingHome));
         Assert.That(npc.DistanceFromHome, Is.GreaterThan(0d));
-        npc.AdvanceTo(700d, 7.5d);
+        npc.AdvanceTo(900d, 7.5d);
         Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
         Assert.That(npc.DistanceFromHome, Is.Zero);
-        npc.AdvanceTo(1210d, 7.5d);
+        npc.AdvanceTo(1380d, 7.5d);
         Assert.That(npc.State, Is.EqualTo(NpcState.Home));
-        Assert.That(npc.Fatigue, Is.EqualTo(16d).Within(1e-6));
+        Assert.That(npc.Fatigue, Is.EqualTo(0d).Within(1e-6));
     }
 
     [TestCase(7.5d)]
@@ -82,11 +86,11 @@ public sealed class NpcSimulationTests
     public void LongJourneyCanBeAbandonedForSleepWithoutReachingWork()
     {
         var npc = Create(100000d);
-        npc.AdvanceTo(1320d, 7.5d);
+        npc.AdvanceTo(1200d, 7.5d);
         Assert.That(npc.State, Is.EqualTo(NpcState.GoingHome));
         Assert.That(npc.WorkedMinutes, Is.Zero);
         Assert.That(npc.DistanceFromHome, Is.GreaterThan(0d));
-        npc.AdvanceTo(2160d, 7.5d);
+        npc.AdvanceTo(1680d, 7.5d);
         Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
         Assert.That(npc.DistanceFromHome, Is.Zero);
     }
@@ -94,13 +98,22 @@ public sealed class NpcSimulationTests
     [Test, Timeout(5000)]
     public void VeryLargeWaitPreservesRepeatedDailyTotals()
     {
-        var npc = Create();
         const double days = 1000000d;
-        npc.AdvanceTo(days * 1440d, 7.5d);
-        Assert.That(npc.WorkedMinutes, Is.EqualTo(days * 520d).Within(0.01d));
-        Assert.That(npc.SleptMinutes, Is.EqualTo(days * 480d).Within(0.01d));
-        Assert.That(npc.TravelledMetres, Is.EqualTo(days * 300d).Within(0.01d));
-        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
+        var direct = Create();
+        direct.AdvanceTo(days * 1440d, 7.5d);
+        // Every completed sleep is exactly 8 hours by construction, so however many sessions
+        // a million days contain, the running total must always land on an exact multiple.
+        Assert.That(direct.SleptMinutes % 480d, Is.EqualTo(0d).Within(1e-6));
+
+        // A single huge jump must match reaching the same point via several staged calls,
+        // proving the multi-day cycle-skip optimization stays correct under the fixed-duration
+        // sleep rule (not just fast).
+        var staged = Create();
+        for (double d = 250000d; d <= days; d += 250000d) staged.AdvanceTo(d * 1440d, 7.5d);
+        Assert.That(staged.State, Is.EqualTo(direct.State));
+        Assert.That(staged.WorkedMinutes, Is.EqualTo(direct.WorkedMinutes).Within(1e-5));
+        Assert.That(staged.SleptMinutes, Is.EqualTo(direct.SleptMinutes).Within(1e-5));
+        Assert.That(staged.TravelledMetres, Is.EqualTo(direct.TravelledMetres).Within(1e-5));
     }
 
     [Test]

@@ -29,6 +29,11 @@ namespace Village.Npc
         public bool sundayOverride;
         public int sundayStartHour = 8;
         public int sundayEndHour = 17;
+        // Opt-in: a fixed one-hour breakfast at the tavern immediately before startHour,
+        // Monday-Saturday only (Sunday keeps its separate church/Sunday rules, untouched).
+        // Off by default: an NPC without this keeps its existing hunger/thirst-only tavern
+        // visits, unaffected.
+        public bool breakfastEnabled;
 
         private static bool IsSunday(double minutes) => (int)Math.Floor(minutes / 1440d) % 7 == 6; // day 0 = Monday
 
@@ -52,6 +57,31 @@ namespace Village.Npc
         // rate for today (Sunday): the shorter Sunday shift must never be extended to catch
         // up missed hours, and must never trigger a mid-shift meal break.
         internal bool SuppressesExtendedWork(double minutes) => sundayOverride && IsSunday(minutes);
+
+        // The breakfast hour is always [startHour-1, startHour), regardless of any Sunday
+        // override, and never applies on Sunday - Sunday keeps its own separate rules.
+        internal bool IsBreakfastTime(double minutes)
+        {
+            if (!breakfastEnabled || IsSunday(minutes)) return false;
+            int breakfastHour = (startHour - 1 + 24) % 24;
+            double hour = (minutes % 1440d) / 60d;
+            return breakfastHour < startHour
+                ? hour >= breakfastHour && hour < startHour
+                : hour >= breakfastHour || hour < startHour;
+        }
+
+        // Mirrors NextBoundary for the breakfast window's own start/end, so a large time
+        // jump never skips over it unevaluated (same reasoning as churchSchedule.NextBoundary).
+        internal double NextBreakfastBoundary(double minutes)
+        {
+            if (!breakfastEnabled) return double.PositiveInfinity;
+            double day = Math.Floor(minutes / 1440d) * 1440d;
+            double start = day + ((startHour - 1 + 24) % 24) * 60d;
+            double end = day + startHour * 60d;
+            if (start <= minutes) start += 1440d;
+            if (end <= minutes) end += 1440d;
+            return Math.Min(start, end);
+        }
 
         public double NextBoundary(double minutes)
         {

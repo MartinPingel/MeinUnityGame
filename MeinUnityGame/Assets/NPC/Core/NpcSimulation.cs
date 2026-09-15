@@ -26,6 +26,11 @@ namespace Village.Npc
         // owes work" check false before any shift has ever begun.
         private double shiftWorkBaseline = double.NegativeInfinity;
         private bool wasWorkWindow;
+        // Opt-in (WorkSchedule.breakfastEnabled): edge-triggered so a forced breakfast is
+        // only requested once per day, at the moment the window opens - not re-forced on
+        // every later Decide() call while still inside it (which would re-trigger service
+        // even after the NPC already ate).
+        private bool wasBreakfastWindow;
         private NpcPoint[] route;
         private int nextPoint;
         private double serviceRemaining;
@@ -144,7 +149,7 @@ namespace Village.Npc
                 commuteBeforeWork = schedule.commuteBeforeWork, extendForBreaks = schedule.extendForBreaks,
                 travelCountsAsWork = schedule.travelCountsAsWork, workDaysMask = schedule.workDaysMask,
                 sundayOverride = schedule.sundayOverride, sundayStartHour = schedule.sundayStartHour,
-                sundayEndHour = schedule.sundayEndHour };
+                sundayEndHour = schedule.sundayEndHour, breakfastEnabled = schedule.breakfastEnabled };
             dailyTargetMinutes = ((work.endHour - work.startHour + 24) % 24) * 60d;
             supplies = new SupplySettings
             {
@@ -262,6 +267,10 @@ namespace Village.Npc
             // Opt-in (churchSchedule): also stop exactly at the service's start/end, so a
             // large jump never skips straight over the 10:00-11:00 window unevaluated.
             if (churchSchedule != null) step = Math.Min(step, churchSchedule.NextBoundary(TotalMinutes) - TotalMinutes);
+            // Opt-in (WorkSchedule.breakfastEnabled): also stop exactly at the breakfast
+            // window's own start/end, so a large jump never skips over it unevaluated -
+            // work.NextBoundary above only knows about startHour/endHour, not startHour-1.
+            if (work.breakfastEnabled) step = Math.Min(step, work.NextBreakfastBoundary(TotalMinutes) - TotalMinutes);
             if (commuteMinutes > 0d)
             {
                 double departure = Math.Floor(TotalMinutes / 1440d) * 1440d
@@ -448,6 +457,13 @@ namespace Village.Npc
             if (Satiation <= supplies.hungerThreshold + Epsilon) seekingFood = true;
             if (Energy <= sleepEnergy + Epsilon) seekingRest = true;
             if (State == NpcState.Sleeping && Energy >= wakeEnergy - Epsilon) seekingRest = false;
+            // Opt-in (WorkSchedule.breakfastEnabled): a fixed Monday-Saturday breakfast hour
+            // immediately before startHour, requesting both food and drink through the exact
+            // same hunger/thirst-driven tavern visit as any other need - edge-triggered once
+            // per day so it is not re-requested every tick for the rest of the hour.
+            bool isBreakfastTimeNow = work.IsBreakfastTime(TotalMinutes);
+            if (isBreakfastTimeNow && !wasBreakfastWindow) { seekingFood = true; seekingWater = true; }
+            wasBreakfastWindow = isBreakfastTimeNow;
             if (TavernService != null && TavernService.SelfSuppliesAtTavern(this) && !work.IsWorkTime(TotalMinutes))
             {
                 double closing = Math.Floor(TotalMinutes / 1440d) * 1440d + work.endHour * 60d;

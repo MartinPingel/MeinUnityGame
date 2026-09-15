@@ -11,8 +11,11 @@ public sealed class NpcChurchAssembly : MonoBehaviour
 {
     [SerializeField] private Transform entrance;
     [SerializeField] private Transform[] seats;
+    // startHour is the mandatory travel/gathering start (attendees must already be heading to
+    // church from this point on, ahead of normal work/tavern/social priorities); the service
+    // itself still only runs 10:00-11:00 - endHour is unchanged.
     [SerializeField] private WorkSchedule schedule = new WorkSchedule
-        { startHour = 10, endHour = 11, workDaysMask = 0b1000000 }; // Sunday only
+        { startHour = 9, endHour = 11, workDaysMask = 0b1000000 }; // Sunday only
 
     private NpcSocialVenue venue;
 

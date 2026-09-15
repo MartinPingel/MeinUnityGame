@@ -29492,7 +29492,7 @@ MonoBehaviour:
     aloneRecoveryMultiplier: 0.5
     satisfiedValue: 100
   work:
-    startHour: 8
+    startHour: 7
     endHour: 21
     commuteBeforeWork: 1
     sundayOverride: 1

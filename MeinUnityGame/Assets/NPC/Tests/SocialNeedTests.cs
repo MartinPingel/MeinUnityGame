@@ -29,7 +29,6 @@ public sealed class SocialNeedTests
         double loss = 0, double recovery = 30, SupplySettings needs = null, Cargo cargo = null,
         System.Func<bool> food = null, System.Func<bool> drink = null) =>
         new NpcSimulation(new Navigation(home), new WorkSchedule { startHour = 0, endHour = 23 },
-            new FatigueSettings { initialFatigue = 0, gainPerAwakeHour = 0.1 },
             needs ?? new SupplySettings { satiationLossPerHour = 0, hydrationLossPerHour = 0 },
             food ?? (() => true), drink ?? (() => true), cargo,
             cargo == null ? null : new WorkDeliverySettings { unitsPerWorkHour = 1, deliveryQuantity = 10 },
@@ -167,7 +166,6 @@ public sealed class SocialNeedTests
         Assert.That(b.Social, Is.EqualTo(d.Social).Within(1e-5));
         Assert.That(a.State, Is.EqualTo(c.State));
         Assert.That(a.Position.X, Is.EqualTo(c.Position.X).Within(1e-5));
-        Assert.That(a.Energy, Is.EqualTo(c.Energy).Within(1e-5));
     }
 }
 

@@ -7,7 +7,7 @@ namespace Village.Npc
 {
     /// <summary>
     /// Event-boundary simulation shared by normal ticking and waiting.
-    /// Priority: critical thirst, critical hunger, energy, work/home.
+    /// Priority: critical thirst, critical hunger, sleep, work/home.
     /// Movement consumes game time along real routes, including interrupted journeys.
     /// </summary>
     public sealed class NpcSimulation
@@ -16,16 +16,13 @@ namespace Village.Npc
         private readonly WorkSchedule work;
         private readonly SupplySettings supplies;
         private readonly INpcNavigation navigation;
-        private readonly double energyLoss, sleepEnergy, wakeEnergy;
         private bool seekingRest, seekingFood, seekingWater;
         private double lastWaiterClosingRest = -1d;
         // Fixed rule for every NPC: a full sleep always lasts exactly this many minutes
-        // (8 game hours), regenerating Energy continuously and linearly from whatever it was
-        // at the start of THIS sleep to exactly 100 at the end - never early, never over 100,
-        // regardless of FatigueSettings. Captured once per sleep (see SetGoal/constructor).
+        // (8 game hours). Triggered once per day by the schedule (see wasOffDuty below), never
+        // by any need value, so it always lines up with that NPC's own work hours.
         private const double FullSleepMinutes = 480d;
         private double sleepSessionStart = double.NegativeInfinity;
-        private double energyAtSleepStart;
         // extendForBreaks bookkeeping: minutes owed for the current shift, and the worked-minutes
         // baseline captured at its start. Unused (stays 0/false) unless a WorkSchedule opts in.
         private readonly double dailyTargetMinutes;
@@ -33,6 +30,15 @@ namespace Village.Npc
         // owes work" check false before any shift has ever begun.
         private double shiftWorkBaseline = double.NegativeInfinity;
         private bool wasWorkWindow;
+        // Edge-triggered (like wasWorkWindow/wasBreakfastWindow): true for the whole stretch
+        // once today's work (including any owed extendForBreaks catch-up) has concluded, so
+        // sleep is requested exactly once per such stretch, not re-requested every later tick.
+        // Starts true: every NPC boots already rested (never mid-sleep), so a schedule that is
+        // already off duty at minute zero never immediately re-triggers a full 8-hour session
+        // there - it only will once its first real shift concludes, exactly like every later
+        // day. Without this, any shift starting before 08:00 would have its very first sleep
+        // (always 8 full hours from minute zero) run past that shift's own start.
+        private bool wasOffDuty = true;
         // Opt-in (WorkSchedule.breakfastEnabled): edge-triggered so a forced breakfast is
         // only requested once per day, at the moment the window opens - not re-forced on
         // every later Decide() call while still inside it (which would re-trigger service
@@ -80,8 +86,6 @@ namespace Village.Npc
         public double DeliveredUnits { get; private set; }
 
         public double TotalMinutes { get; private set; }
-        public double Energy { get; private set; }
-        public double Fatigue => 100d - Energy; // Compatibility for existing callers.
         public double Satiation { get; private set; }
         public double Hydration { get; private set; }
         public double RouteLength { get; }
@@ -100,12 +104,12 @@ namespace Village.Npc
         public bool NeedsDrink => seekingWater;
         public bool NeedsRest => seekingRest;
 
-        public NpcSimulation(double routeLength, WorkSchedule schedule, FatigueSettings settings)
-            : this(new HomeWorkNavigation(routeLength), schedule, settings,
+        public NpcSimulation(double routeLength, WorkSchedule schedule)
+            : this(new HomeWorkNavigation(routeLength), schedule,
                 new SupplySettings { satiationLossPerHour = 0d, hydrationLossPerHour = 0d }) { }
 
         public NpcSimulation(INpcNavigation navigation, WorkSchedule schedule,
-            FatigueSettings settings, SupplySettings supplySettings,
+            SupplySettings supplySettings,
             Func<bool> consumeFood = null, Func<bool> consumeDrink = null,
             INpcDeliveryInventory deliveryInventory = null, WorkDeliverySettings deliverySettings = null,
             INpcWorkEquipment workEquipment = null,
@@ -115,7 +119,6 @@ namespace Village.Npc
         {
             if (navigation == null) throw new ArgumentNullException(nameof(navigation));
             schedule.Validate();
-            settings.Validate();
             supplySettings.Validate();
             this.navigation = navigation;
             this.consumeFood = consumeFood;
@@ -172,10 +175,6 @@ namespace Village.Npc
                 eatingMinutes = supplySettings.eatingMinutes,
                 drinkingMinutes = supplySettings.drinkingMinutes
             };
-            Energy = 100d - settings.initialFatigue;
-            energyLoss = settings.gainPerAwakeHour;
-            sleepEnergy = 100d - settings.sleepThreshold;
-            wakeEnergy = 100d - settings.wakeThreshold;
             Satiation = supplies.initialSatiation;
             Hydration = supplies.initialHydration;
             Position = navigation.GetPlace(NpcPlace.Home);
@@ -185,11 +184,11 @@ namespace Village.Npc
             for (int i = 1; i < workRoute.Length; i++)
                 workDistance += NpcPoint.Distance(workRoute[i - 1], workRoute[i]);
             RouteLength = workDistance;
-            State = NpcState.Sleeping;
-            seekingRest = Energy < wakeEnergy - Epsilon;
-            // Bootstraps the very first sleep session directly (State starts as Sleeping
-            // without going through SetGoal, unlike every later sleep).
-            if (seekingRest) { sleepSessionStart = TotalMinutes; energyAtSleepStart = Energy; }
+            // Starts idle at home; the first Decide() call below evaluates the schedule from
+            // here exactly like any later tick, so it naturally requests sleep immediately if
+            // this NPC is already off duty at minute zero, or leaves it for later (e.g. Lisa's
+            // overnight shift, already at work at minute zero) without any special-casing.
+            State = NpcState.Home;
             Decide();
         }
 
@@ -209,7 +208,7 @@ namespace Village.Npc
                 ? new Dictionary<string, Snapshot>() : null;
             while (targetMinutes - TotalMinutes > Epsilon)
             {
-                Decide(metresPerGameMinute);
+                Decide();
                 // Only exactly repeated COMPLETE states may be skipped. Supplies,
                 // destination, route and interrupted needs all affect future decisions.
                 if (midnights != null && TotalMinutes % 1440d == 0d)
@@ -241,7 +240,7 @@ namespace Village.Npc
                 ApplyStep(frame, frame.Step);
             }
             TotalMinutes = targetMinutes;
-            Decide(metresPerGameMinute);
+            Decide();
         }
 
         internal struct StepFrame
@@ -258,9 +257,7 @@ namespace Village.Npc
             public bool producing;
             public double satiationRate;
             public double hydrationRate;
-            public double sleepEnergyRate;
-            public double energyIn;
-            public double homeTravelEnergy;
+            public double wakeIn;
             public double foodIn;
             public double waterIn;
             public double arrivalIn;
@@ -331,13 +328,10 @@ namespace Village.Npc
                 ? supplies.workingHydrationLossPerHour
                 : supplies.hydrationLossPerHour;
             if (State == NpcState.Delivering) step = Math.Min(step, 1d);
-            // Fixed rule: while sleeping, Energy always regenerates linearly toward exactly 100
-            // over exactly FullSleepMinutes from wherever it stood at the start of this sleep -
-            // never early (energyIn only depends on elapsed time, not on Energy itself).
-            double sleepEnergyRate = sleeping ? (100d - energyAtSleepStart) / FullSleepMinutes : 0d;
-            double homeTravelEnergy = HomeTravelEnergy(metresPerGameMinute);
-            double energyIn = sleeping ? Math.Max(Epsilon, sleepSessionStart + FullSleepMinutes - TotalMinutes)
-                : !seekingRest ? (Energy - sleepEnergy - homeTravelEnergy) / (energyLoss / 60d) : double.PositiveInfinity;
+            // Fixed rule: a sleep session always ends exactly FullSleepMinutes after it began,
+            // regardless of anything else - stop exactly there so Decide() can wake the NPC.
+            double wakeIn = sleeping ? Math.Max(Epsilon, sleepSessionStart + FullSleepMinutes - TotalMinutes)
+                : double.PositiveInfinity;
             double foodIn = !seekingFood && satiationRate > 0d
                 ? (Satiation - supplies.hungerThreshold) / (satiationRate / 60d)
                 : double.PositiveInfinity;
@@ -346,7 +340,7 @@ namespace Village.Npc
                 : double.PositiveInfinity;
             double arrivalIn = travelling ? NpcPoint.Distance(Position, route[nextPoint]) / travelSpeed
                 : double.PositiveInfinity;
-            step = Math.Min(step, Math.Min(Math.Min(energyIn, foodIn), Math.Min(waterIn, arrivalIn)));
+            step = Math.Min(step, Math.Min(Math.Min(wakeIn, foodIn), Math.Min(waterIn, arrivalIn)));
             if (eating || drinking) step = Math.Min(step, serviceRemaining);
             bool hostContact = IsDoingInnkeeperWork && TavernService.HasPresentGuest;
             bool aloneAtSeat = !IsInnkeeper && seekingSocial && AtSocialPlace &&
@@ -371,8 +365,8 @@ namespace Village.Npc
                 Step = step, sleeping = sleeping, travelling = travelling,
                 travelSpeed = travelSpeed, eating = eating, drinking = drinking,
                 working = working, atWorkplace = atWorkplace, wearing = wearing, producing = producing,
-                satiationRate = satiationRate, hydrationRate = hydrationRate, sleepEnergyRate = sleepEnergyRate,
-                energyIn = energyIn, homeTravelEnergy = homeTravelEnergy, foodIn = foodIn,
+                satiationRate = satiationRate, hydrationRate = hydrationRate,
+                wakeIn = wakeIn, foodIn = foodIn,
                 waterIn = waterIn, arrivalIn = arrivalIn, socialising = socialising,
                 socialRate = socialRate, socialIn = socialIn, socialTarget = socialTarget
             };
@@ -395,14 +389,8 @@ namespace Village.Npc
             // No wear on walks, deliveries, need detours, sleep or time without a usable tool.
             if (frame.wearing) workEquipment.Wear(step);
             if (frame.sleeping) SleptMinutes += step;
-            Energy = Clamp(Energy + (frame.sleeping ? step * frame.sleepEnergyRate : -step * energyLoss / 60d));
             Satiation = Clamp(Satiation - step * frame.satiationRate / 60d);
             Hydration = Clamp(Hydration - step * frame.hydrationRate / 60d);
-            // Exact snap at the end of a full 8-hour sleep: 100, never higher, regardless of
-            // any floating-point drift accumulated across the linear ramp above. Off sleep, the
-            // landing point is the anticipated rest trigger (sleepEnergy plus the walk home this
-            // step was budgeting for), matching the energyIn this step was capped to.
-            if (step == frame.energyIn) Energy = frame.sleeping ? 100d : sleepEnergy + frame.homeTravelEnergy;
             if (step == frame.foodIn) Satiation = supplies.hungerThreshold;
             if (step == frame.waterIn) Hydration = supplies.thirstThreshold;
             if (frame.travelling)
@@ -442,7 +430,7 @@ namespace Village.Npc
             commuteMinutes = work.commuteBeforeWork
                 ? Math.Min(RouteLength / (speed * TravelMultiplier(0)),
                     ((work.startHour - work.endHour + 24) % 24) * 60d) : 0d;
-            Decide(speed);
+            Decide();
         }
 
         internal void SetSocialContact(bool contact)
@@ -472,25 +460,34 @@ namespace Village.Npc
             return multiplier;
         }
 
-        // Anticipates the energy the ordinary walk home will cost, the same way
-        // commuteBeforeWork anticipates the walk to work: without it, a route with any real
-        // home-to-work distance keeps draining Energy below sleepEnergy for the whole walk back,
-        // adding that walk's duration on top of the intended 16h-awake/8h-sleep cycle every
-        // single day - a steady per-NPC drift that eventually carries the daily rest-trigger
-        // into the middle of the workday. Scoped to Working/GoingToWork (the ordinary daily
-        // commute) so it never second-guesses an in-progress delivery/collection/social/church
-        // errand, which already has its own tested interruption behavior.
-        private double HomeTravelEnergy(double speed) =>
-            speed > 0d && (State == NpcState.Working || State == NpcState.GoingToWork)
-                ? DistanceFromHome / (speed * TravelMultiplier(CargoQuantity)) * energyLoss / 60d : 0d;
-
-        private void Decide(double speed = 0d)
+        private void Decide()
         {
             if (Hydration <= supplies.thirstThreshold + Epsilon) seekingWater = true;
             if (Satiation <= supplies.hungerThreshold + Epsilon) seekingFood = true;
-            if (Energy <= sleepEnergy + HomeTravelEnergy(speed) + Epsilon) seekingRest = true;
-            // Fixed rule: wake only once the full 8 hours have elapsed - never early just
-            // because Energy has already reached 100 (it never does before then, by construction).
+
+            // extendForBreaks bookkeeping, moved up front so the schedule-based rest trigger
+            // below can use stillOwesWork the same tick it changes. Unchanged in every other
+            // respect from where this used to run further down.
+            bool isWorkTimeNow = work.IsWorkTime(TotalMinutes);
+            // sundayOverride: suppressed today means extendForBreaks behaves as if off, so a
+            // shortened Sunday shift never captures/uses a catch-up baseline for itself and
+            // never carries a false "still owes work" debt into the following day.
+            bool extendActiveNow = work.extendForBreaks && !work.SuppressesExtendedWork(TotalMinutes);
+            if (extendActiveNow && isWorkTimeNow && !wasWorkWindow) shiftWorkBaseline = WorkedMinutes;
+            if (visitRoute != null && isWorkTimeNow && !wasWorkWindow) visitRoute.ResetForNewShift();
+            wasWorkWindow = isWorkTimeNow;
+            bool stillOwesWork = extendActiveNow && !isWorkTimeNow &&
+                WorkedMinutes - shiftWorkBaseline < dailyTargetMinutes - Epsilon;
+
+            // Fixed rule: every NPC sleeps a full 8 hours once a day. Triggered purely by the
+            // work schedule - the instant today's work (including any owed extendForBreaks
+            // catch-up) concludes - never by a need value, so it always lines up with that
+            // NPC's own hours and never fires mid-shift. Edge-triggered like wasWorkWindow/
+            // wasBreakfastWindow so it fires exactly once per off-duty stretch.
+            bool offDutyNow = !isWorkTimeNow && !stillOwesWork;
+            if (offDutyNow && !wasOffDuty) seekingRest = true;
+            wasOffDuty = offDutyNow;
+            // Fixed rule: wake only once the full 8 hours have elapsed.
             if (State == NpcState.Sleeping && TotalMinutes >= sleepSessionStart + FullSleepMinutes - Epsilon)
                 seekingRest = false;
             // Opt-in (WorkSchedule.breakfastEnabled): a fixed Monday-Saturday breakfast hour
@@ -520,18 +517,6 @@ namespace Village.Npc
                 if (((!seekingSocial || IsInnkeeper || work.IsWorkTime(TotalMinutes)) && !needsSupply) ||
                     (seekingRest && !needsSupply)) ReleaseSocialPlace();
             }
-            // extendForBreaks: reset the owed-minutes baseline exactly once per shift, at the
-            // transition into its nominal window, then track whether today's target is still short.
-            bool isWorkTimeNow = work.IsWorkTime(TotalMinutes);
-            // sundayOverride: suppressed today means extendForBreaks behaves as if off, so a
-            // shortened Sunday shift never captures/uses a catch-up baseline for itself and
-            // never carries a false "still owes work" debt into the following day.
-            bool extendActiveNow = work.extendForBreaks && !work.SuppressesExtendedWork(TotalMinutes);
-            if (extendActiveNow && isWorkTimeNow && !wasWorkWindow) shiftWorkBaseline = WorkedMinutes;
-            if (visitRoute != null && isWorkTimeNow && !wasWorkWindow) visitRoute.ResetForNewShift();
-            wasWorkWindow = isWorkTimeNow;
-            bool stillOwesWork = extendActiveNow && !isWorkTimeNow &&
-                WorkedMinutes - shiftWorkBaseline < dailyTargetMinutes - Epsilon;
             // Water carried to the tavern is unloaded even when the arrival was a need detour.
             // This is opt-in: farm/smith deliveries retain their existing behavior.
             var waterSupply = deliveryInventory as INpcWaterSupply;
@@ -778,9 +763,8 @@ namespace Village.Npc
                 {
                     serviceRemaining = arrivalState == NpcState.Eating ? supplies.eatingMinutes
                         : arrivalState == NpcState.Drinking ? supplies.drinkingMinutes : 0d;
-                    // Every fresh entry into Sleeping (after the constructor's own bootstrap
-                    // one) starts a new fixed 8-hour session from Energy as it stands now.
-                    if (arrivalState == NpcState.Sleeping) { sleepSessionStart = TotalMinutes; energyAtSleepStart = Energy; }
+                    // Every fresh entry into Sleeping starts a new fixed 8-hour session from now.
+                    if (arrivalState == NpcState.Sleeping) sleepSessionStart = TotalMinutes;
                 }
                 Target = destination;
                 State = arrivalState;
@@ -813,7 +797,7 @@ namespace Village.Npc
             var key = new StringBuilder();
             key.Append((int)State).Append('|').Append((int)Target).Append('|')
                 .Append(seekingRest).Append('|').Append(seekingFood).Append('|').Append(seekingWater);
-            foreach (double value in new[] { Energy, Satiation, Hydration, serviceRemaining,
+            foreach (double value in new[] { Satiation, Hydration, serviceRemaining,
                 Position.X, Position.Y, Position.Z, Facing.X, Facing.Y, Facing.Z })
                 key.Append('|').Append(value.ToString("R", CultureInfo.InvariantCulture));
             if (route != null)

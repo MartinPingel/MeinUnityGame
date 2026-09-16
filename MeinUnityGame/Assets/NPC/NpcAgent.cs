@@ -43,9 +43,8 @@ public sealed class NpcAgent : MonoBehaviour
 
     public WorkplaceTools WorkTools => workToolWarehouse != null ? workToolWarehouse.Tools : null;
 
-    [Header("Arbeit, Energie und Versorgung - vor Play einstellen")]
+    [Header("Arbeit und Versorgung - vor Play einstellen")]
     [SerializeField] private WorkSchedule work = new WorkSchedule();
-    [SerializeField] private FatigueSettings fatigue = new FatigueSettings();
     [SerializeField] private SupplySettings supplies = new SupplySettings();
     [SerializeField, Min(0.1f)] private float walkingMetresPerSecond = 1.5f;
     [SerializeField] private float bodyHeightOffset = 1f;
@@ -106,7 +105,7 @@ public sealed class NpcAgent : MonoBehaviour
                     deliveryJob != null ? deliveryJob.DeliveryPoint : null,
                     deliveryJob != null ? deliveryJob.PickupPoint : null, toolPickupPoint, socialMeeting,
                     visitRoute, churchVenue != null);
-                simulation = new NpcSimulation(navigation, work, fatigue, supplies,
+                simulation = new NpcSimulation(navigation, work, supplies,
                     null, null, // Stock is consumed only by NpcTavernService at handover.
                     deliveryJob, deliveryJob != null ? deliveryJob.Settings : null,
                     workToolWarehouse != null ? new WorkEquipment(workToolWarehouse, toolSourceWarehouse) : null,

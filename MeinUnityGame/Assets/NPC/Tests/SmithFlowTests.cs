@@ -31,10 +31,9 @@ public sealed class SmithFlowTests
         public bool TryProduceOne() => Smith.TryConvert("Eisen", 2, "Werkzeuge", 1);
     }
 
-    private static NpcSimulation Create(Stores stores, SupplySettings supplies = null, FatigueSettings fatigue = null)
+    private static NpcSimulation Create(Stores stores, SupplySettings supplies = null)
     {
         return new NpcSimulation(new Road(), new WorkSchedule { startHour = 8, endHour = 18 },
-            fatigue ?? new FatigueSettings { initialFatigue = 0d, gainPerAwakeHour = 0.1d },
             supplies ?? new SupplySettings { satiationLossPerHour = 0d, hydrationLossPerHour = 0d },
             () => true, () => true, stores,
             new WorkDeliverySettings { deliveryQuantity = 10, unitsPerWorkHour = 2d });
@@ -126,20 +125,23 @@ public sealed class SmithFlowTests
     }
 
     [Test]
-    public void SleepDetourKeepsCargoAndNoProcessingHappensAfterShiftEnd()
+    public void ShiftEndDuringDeliveryAbandonsItForSleepAndKeepsTheCargo()
     {
-        var stores = new Stores();
-        var npc = Create(stores, fatigue: new FatigueSettings {
-            initialFatigue = 0d, gainPerAwakeHour = 80d * 60d / 515d });
-        npc.AdvanceTo(600d, 10d);
-        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
+        var stores = new Stores(0);
+        var npc = Create(stores);
+        npc.AdvanceTo(1050d, 10d);
+        stores.Smelter.Add("Eisen", 10);
+        npc.AdvanceTo(1070d, 10d);
         Assert.That(npc.CargoQuantity, Is.EqualTo(10));
-        npc.AdvanceTo(1100d, 10d);
-        Assert.That(npc.Target, Is.EqualTo(NpcPlace.Home));
-        Assert.That(npc.CargoQuantity, Is.Zero);
-        Assert.That(stores.Smith.GetQuantity("Eisen"), Is.EqualTo(10));
+        // 18:00 (minute 1080) arrives mid-delivery: sleep - purely schedule-triggered now,
+        // never energy-triggered - still outranks finishing the trip, same as it always did.
+        npc.AdvanceTo(1200d, 10d);
+        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
+        Assert.That(npc.DistanceFromHome, Is.Zero);
+        Assert.That(npc.CargoQuantity, Is.EqualTo(10));
+        Assert.That(stores.Smith.GetQuantity("Eisen"), Is.Zero);
         Assert.That(stores.Smith.GetQuantity("Werkzeuge"), Is.Zero);
-        Conserved(stores, npc);
+        Conserved(stores, npc, 10);
     }
 
     [Test]
@@ -167,8 +169,8 @@ public sealed class SmithFlowTests
     {
         var jumpedStores = new Stores();
         var tickingStores = new Stores();
-        var jumped = Create(jumpedStores, new SupplySettings(), new FatigueSettings());
-        var ticking = Create(tickingStores, new SupplySettings(), new FatigueSettings());
+        var jumped = Create(jumpedStores, new SupplySettings());
+        var ticking = Create(tickingStores, new SupplySettings());
         const double end = 4d * 1440d + 550.25d;
         jumped.AdvanceTo(end, 10d);
         for (double t = 0.37d; t < end; t += 0.37d)
@@ -182,7 +184,6 @@ public sealed class SmithFlowTests
         Assert.That(jumped.CargoQuantity, Is.EqualTo(ticking.CargoQuantity));
         Assert.That(jumped.State, Is.EqualTo(ticking.State));
         Assert.That(jumped.Position.X, Is.EqualTo(ticking.Position.X).Within(1e-5));
-        Assert.That(jumped.Energy, Is.EqualTo(ticking.Energy).Within(1e-5));
         Assert.That(jumped.WorkedMinutes, Is.EqualTo(ticking.WorkedMinutes).Within(1e-5));
     }
 }

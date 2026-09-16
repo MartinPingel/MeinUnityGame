@@ -8,7 +8,7 @@ using UnityEngine.SceneManagement;
 /// <summary>
 /// Test controls for waiting in whole game hours, using the project's Input System.
 /// GameClock.TimeAdvanced reports the before/after interval for future NPC schedules,
-/// fatigue, hunger and thirst. GameClock.DayChanged reports the destination day.
+/// sleep, hunger and thirst. GameClock.DayChanged reports the destination day.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(GameClock))]

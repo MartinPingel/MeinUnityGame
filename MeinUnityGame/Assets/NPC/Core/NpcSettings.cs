@@ -105,29 +105,6 @@ namespace Village.Npc
         }
     }
 
-    // Existing scene data stays compatible; simulation converts these to Energy = 100 - Fatigue.
-    [Serializable]
-    public sealed class FatigueSettings
-    {
-        public double initialFatigue = 64d;
-        public double gainPerAwakeHour = 4d;
-        public double recoveryPerSleepHour = 8d;
-        public double sleepThreshold = 80d;
-        public double wakeThreshold = 16d;
-
-        public void Validate()
-        {
-            double[] values = { initialFatigue, gainPerAwakeHour, recoveryPerSleepHour, sleepThreshold, wakeThreshold };
-            foreach (double value in values)
-                if (double.IsNaN(value) || double.IsInfinity(value))
-                    throw new ArgumentException("Fatigue settings must be finite.");
-            if (initialFatigue < 0d || initialFatigue > 100d || gainPerAwakeHour <= 0d ||
-                recoveryPerSleepHour <= 0d || wakeThreshold < 0d || sleepThreshold > 100d ||
-                wakeThreshold >= sleepThreshold)
-                throw new ArgumentException("Invalid fatigue rates or sleep/wake thresholds.");
-        }
-    }
-
     [Serializable]
     public sealed class SupplySettings
     {

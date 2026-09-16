@@ -21,39 +21,37 @@ public sealed class NpcSupplyTests
         }
     }
 
-    private static NpcSimulation Create(SupplySettings supplies = null, FatigueSettings fatigue = null,
+    private static NpcSimulation Create(SupplySettings supplies = null,
         INpcNavigation roads = null, WorkSchedule schedule = null,
         Func<bool> consumeFood = null, Func<bool> consumeDrink = null)
     {
         return new NpcSimulation(roads ?? new TestRoad(), schedule ?? new WorkSchedule(),
-            fatigue ?? new FatigueSettings(), supplies ?? new SupplySettings(), consumeFood, consumeDrink);
+            supplies ?? new SupplySettings(), consumeFood, consumeDrink);
     }
 
     [Test]
-    public void EnergyAndSuppliesUseGameHoursDuringSleepAndWork()
+    public void SuppliesUseGameHoursDuringSleepAndWork()
     {
         var npc = Create();
-        Assert.That(npc.Energy, Is.EqualTo(36d));
         Assert.That(npc.Satiation, Is.EqualTo(100d));
         Assert.That(npc.Hydration, Is.EqualTo(100d));
-        npc.AdvanceTo(360d, 7.5d);
-        // Still asleep: the fixed 8-hour sleep hasn't elapsed yet (started at Energy 36, ends
-        // at exactly 100 at minute 480). Satiation/Hydration decay is unrelated to sleep and
-        // keeps running on elapsed time alone, unaffected.
-        Assert.That(npc.Energy, Is.EqualTo(84d).Within(1e-7));
-        Assert.That(npc.Satiation, Is.EqualTo(88d).Within(1e-7));
-        Assert.That(npc.Hydration, Is.EqualTo(76d).Within(1e-7));
-        npc.AdvanceTo(600d, 7.5d);
-        Assert.That(npc.State, Is.EqualTo(NpcState.Working));
-        Assert.That(npc.Energy, Is.EqualTo(92d).Within(1e-7));
-        Assert.That(npc.Hydration, Is.EqualTo(60d).Within(1e-7));
+        // Boots already rested (never mid-sleep at minute zero): the first shift runs
+        // uninterrupted, and the first sleep of the game only comes right after it (1040).
+        Assert.That(npc.State, Is.EqualTo(NpcState.Home));
+        npc.AdvanceTo(1080d, 7.5d);
+        // 40 minutes into the first sleep (the fixed 8-hour session runs from 1040 to 1520).
+        // Satiation/Hydration decay is unrelated to sleep or work and keeps running on elapsed
+        // time alone, unaffected - 18 hours have passed since minute zero, spanning the idle
+        // wait, the whole shift and the start of sleep alike.
+        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
+        Assert.That(npc.Satiation, Is.EqualTo(64d).Within(1e-7));
+        Assert.That(npc.Hydration, Is.EqualTo(28d).Within(1e-7));
     }
 
     [Test]
-    public void CriticalWaterThenFoodThenSleepIncludesAllTravelAndServiceTime()
+    public void CriticalWaterThenFoodAreResolvedBeforeIdlingAtHome()
     {
-        var npc = Create(new SupplySettings { initialSatiation = 20d, initialHydration = 20d },
-            new FatigueSettings { initialFatigue = 80d });
+        var npc = Create(new SupplySettings { initialSatiation = 20d, initialHydration = 20d });
         Assert.That(npc.State, Is.EqualTo(NpcState.GoingToDrink));
         Assert.That(npc.Target, Is.EqualTo(NpcPlace.Tavern));
         npc.AdvanceTo(10d, 7.5d);
@@ -69,8 +67,10 @@ public sealed class NpcSupplyTests
         Assert.That(npc.Satiation, Is.EqualTo(100d));
         Assert.That(npc.State, Is.EqualTo(NpcState.GoingHome));
         npc.AdvanceTo(60d, 7.5d);
-        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
-        Assert.That(npc.Energy, Is.EqualTo(16d).Within(1e-7));
+        // No sleep pending this early (still hours before the first shift even starts, and it
+        // boots already rested): once both needs are resolved, it simply settles at home awake.
+        Assert.That(npc.State, Is.EqualTo(NpcState.Home));
+        Assert.That(npc.DistanceFromHome, Is.Zero);
     }
 
     [Test]
@@ -123,7 +123,6 @@ public sealed class NpcSupplyTests
         ticking.AdvanceTo(end, speed);
         Assert.That(jumped.State, Is.EqualTo(ticking.State));
         Assert.That(jumped.Target, Is.EqualTo(ticking.Target));
-        Assert.That(jumped.Energy, Is.EqualTo(ticking.Energy).Within(1e-5));
         Assert.That(jumped.Satiation, Is.EqualTo(ticking.Satiation).Within(1e-5));
         Assert.That(jumped.Hydration, Is.EqualTo(ticking.Hydration).Within(1e-5));
         Assert.That(jumped.Position.X, Is.EqualTo(ticking.Position.X).Within(1e-5));
@@ -226,7 +225,6 @@ public sealed class NpcSupplyTests
         Assert.That(jumped.DrinksCompleted, Is.EqualTo(ticking.DrinksCompleted));
         Assert.That(jumped.Satiation, Is.EqualTo(ticking.Satiation).Within(1e-5));
         Assert.That(jumped.Hydration, Is.EqualTo(ticking.Hydration).Within(1e-5));
-        Assert.That(jumped.Energy, Is.EqualTo(ticking.Energy).Within(1e-5));
         Assert.That(jumped.State, Is.EqualTo(ticking.State));
     }
 
@@ -240,6 +238,5 @@ public sealed class NpcSupplyTests
         Assert.That(npc.TotalMinutes, Is.Zero);
         Assert.That(npc.Satiation, Is.EqualTo(100d));
         Assert.That(npc.Hydration, Is.EqualTo(100d));
-        Assert.That(npc.Energy, Is.EqualTo(36d));
     }
 }

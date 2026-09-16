@@ -20,7 +20,7 @@ public sealed class TavernServiceTests
         public readonly NpcSimulationGroup Group = new NpcSimulationGroup();
         public readonly NpcSimulation Guest, Waiter;
         private readonly NpcSocialVenue venue;
-        public World(bool drink = false, int stock = 1, double waiterHunger = 0, double guestSocial = 30, double waiterSocial = 100, double waiterSocialLoss = 0, bool selfSupply = false, double waiterEnergyLoss = 0.1)
+        public World(bool drink = false, int stock = 1, double waiterHunger = 0, double guestSocial = 30, double waiterSocial = 100, double waiterSocialLoss = 0, bool selfSupply = false)
         {
             Food = Water = stock;
             venue = new NpcSocialVenue(new NpcPoint(50, 0, 0),
@@ -35,7 +35,7 @@ public sealed class TavernServiceTests
             Waiter = Create(venue, new SupplySettings {
                 initialSatiation = waiterHunger > 0 ? 22 : 100,
                 satiationLossPerHour = waiterHunger, hydrationLossPerHour = 0,
-                eatingMinutes = 1 }, waiterSocial, waiterSocialLoss, waiterEnergyLoss);
+                eatingMinutes = 1 }, waiterSocial, waiterSocialLoss);
             Group.Add(Guest, () => 1000); Group.Add(Waiter, () => 10);
             Service.Register(Guest, false); Service.Register(Waiter, true);
             Group.PrepareServices = Service.Update;
@@ -59,9 +59,9 @@ public sealed class TavernServiceTests
             return other;
         }
 
-        private NpcSimulation Create(NpcSocialVenue venue, SupplySettings needs, double social, double socialLoss = 0, double energyLoss = 0.1) =>
+        private NpcSimulation Create(NpcSocialVenue venue, SupplySettings needs, double social, double socialLoss = 0) =>
             new NpcSimulation(new Navigation(), new WorkSchedule { startHour = 0, endHour = 23 },
-                new FatigueSettings { initialFatigue = 0, gainPerAwakeHour = energyLoss }, needs,
+                needs,
                 () => throw new InvalidOperationException("Legacy food consumption must not run."),
                 () => throw new InvalidOperationException("Legacy drink consumption must not run."),
                 null, null, null, venue, new NpcSocialSettings { initialValue = social,
@@ -247,7 +247,7 @@ public sealed class TavernServiceTests
     [Test]
     public void AdditionalWaiterReturnsToOwnSleepPointAfterClosing()
     {
-        var w = new World(stock: 0, selfSupply: true, waiterEnergyLoss: 1);
+        var w = new World(stock: 0, selfSupply: true);
         w.Service.Remove(w.Guest); w.Group.Remove(w.Guest);
         w.Group.AdvanceTo(23 * 60);
         Assert.That(w.Waiter.State, Is.EqualTo(NpcState.Sleeping));

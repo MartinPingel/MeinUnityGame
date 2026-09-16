@@ -34,7 +34,6 @@ public sealed class ToolBootstrapTests
     }
     private static NpcSimulation Create(Equipment equipment, Production job, bool thirst = false) =>
         new NpcSimulation(new Road(), new WorkSchedule { startHour = 8, endHour = 17 },
-            new FatigueSettings { initialFatigue = 0, gainPerAwakeHour = 0.1 },
             new SupplySettings { initialHydration = thirst ? 20 + 505d * 4 / 60 : 100,
                 hydrationLossPerHour = thirst ? 4 : 0, satiationLossPerHour = 0 },
             () => true, () => true, job,

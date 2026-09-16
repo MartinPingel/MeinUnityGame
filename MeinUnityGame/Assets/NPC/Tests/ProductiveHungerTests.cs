@@ -26,7 +26,6 @@ public sealed class ProductiveHungerTests
     }
     private static NpcSimulation Create(Job job, Equipment equipment = null) =>
         new NpcSimulation(new Road(), new WorkSchedule { startHour = 8, endHour = 17 },
-            new FatigueSettings { initialFatigue = 0, gainPerAwakeHour = 0.1 },
             new SupplySettings { satiationLossPerHour = 5, productiveSatiationMultiplier = 2,
                 hydrationLossPerHour = 0 }, () => true, () => true, job,
             new WorkDeliverySettings { unitsPerWorkHour = 6, deliveryQuantity = 10 }, equipment);

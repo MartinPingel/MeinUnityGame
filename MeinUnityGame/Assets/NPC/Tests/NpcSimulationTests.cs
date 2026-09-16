@@ -4,13 +4,26 @@ using Village.Npc;
 
 public sealed class NpcSimulationTests
 {
-    private static NpcSimulation Create(double length = 150d, FatigueSettings fatigue = null)
+    private static NpcSimulation Create(double length = 150d)
     {
-        return new NpcSimulation(length, new WorkSchedule(), fatigue ?? new FatigueSettings());
+        return new NpcSimulation(length, new WorkSchedule());
     }
 
     [Test]
-    public void WorkRequiresArrivalAndEndsWithReturnHome()
+    public void ShiftStartingBeforeEightAmNeverCollidesWithFirstDayBootstrap()
+    {
+        // A schedule starting before 08:00 (e.g. Justus/Jan/Michael/Florian's real 07:00
+        // shifts) would collide with a naive "always sleep a full 8 hours from minute zero"
+        // boot, since that session would only end at 08:00. Booting already rested (never
+        // mid-sleep) avoids it entirely, on day one exactly as on every later day.
+        var npc = new NpcSimulation(200d, new WorkSchedule { startHour = 7, endHour = 17 });
+        Assert.That(npc.State, Is.Not.EqualTo(NpcState.Sleeping));
+        npc.AdvanceTo(420d, 7.5d); // 07:00, shift start.
+        Assert.That(npc.State, Is.EqualTo(NpcState.GoingToWork));
+    }
+
+    [Test]
+    public void WorkRequiresArrivalAndEndsWithSleepRightAfter()
     {
         var npc = Create();
         npc.AdvanceTo(480d, 7.5d);
@@ -24,54 +37,61 @@ public sealed class NpcSimulationTests
         npc.AdvanceTo(1020d, 7.5d);
         Assert.That(npc.State, Is.EqualTo(NpcState.GoingHome));
         Assert.That(npc.WorkedMinutes, Is.EqualTo(520d).Within(1e-7));
+        // Sleep is scheduled, not energy-triggered: the moment this NPC gets home after the
+        // shift ends, it goes straight to sleep rather than sitting idle first.
         npc.AdvanceTo(1040d, 7.5d);
-        Assert.That(npc.State, Is.EqualTo(NpcState.Home));
+        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
         Assert.That(npc.DistanceFromHome, Is.Zero);
     }
 
     [Test]
-    public void SleepAlwaysLastsEightHoursAndEndsAtExactlyFullEnergy()
+    public void SleepAlwaysLastsExactlyEightHoursEveryTime()
     {
         var npc = Create();
+        // Boots already rested (never mid-sleep at minute zero), so the very first shift runs
+        // uninterrupted - the first sleep of the game only comes right after it.
+        Assert.That(npc.State, Is.EqualTo(NpcState.Home));
+        npc.AdvanceTo(1040d, 7.5d);
         Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
-        Assert.That(npc.Fatigue, Is.EqualTo(64d));
-        npc.AdvanceTo(360d, 7.5d);
-        // Still short of the fixed 8 hours: regenerating continuously, but not yet full.
+        Assert.That(npc.SleptMinutes, Is.Zero);
+        npc.AdvanceTo(1519d, 7.5d);
         Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
-        Assert.That(npc.Energy, Is.EqualTo(84d).Within(1e-7));
-        npc.AdvanceTo(480d, 7.5d);
-        // Exactly 8 hours after going to sleep with Energy 36: exactly 100 now, never early.
-        Assert.That(npc.Energy, Is.EqualTo(100d).Within(1e-7));
+        npc.AdvanceTo(1520d, 7.5d);
+        // Exactly 8 hours after arriving home (1040 + 480 = 1520): wakes, never early or late.
+        Assert.That(npc.State, Is.EqualTo(NpcState.Home));
         Assert.That(npc.SleptMinutes, Is.EqualTo(480d).Within(1e-7));
-        npc.AdvanceTo(1680d, 7.5d);
-        // A second sleep, from a much lower rest value (20), still runs the full fixed
-        // 8 hours rather than any shorter recovery-rate-based duration.
+        npc.AdvanceTo(2480d, 7.5d);
+        // Home again right after day 2's shift: a second full session starts fresh from here.
         Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
-        Assert.That(npc.Energy, Is.EqualTo(20d).Within(1e-7));
-        npc.AdvanceTo(2160d, 7.5d);
-        Assert.That(npc.Energy, Is.EqualTo(100d).Within(1e-7));
+        npc.AdvanceTo(2959d, 7.5d);
+        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
+        npc.AdvanceTo(2960d, 7.5d);
+        // Exactly 8 hours after arriving home the second time (2480 + 480 = 2960): the second
+        // session also lasts precisely 8 hours, not a minute more or less.
+        Assert.That(npc.State, Is.EqualTo(NpcState.Home));
         Assert.That(npc.SleptMinutes, Is.EqualTo(960d).Within(1e-7));
     }
 
     [Test]
-    public void SevereFatigueOverridesWorkAndSleepRequiresGettingHome()
+    public void ExtendForBreaksCatchUpDelaysSleepUntilTodaysTargetIsMet()
     {
-        // Route length 150 at speed 7.5 costs a real 20-minute walk home, so the rest trigger
-        // anticipates it (see HomeTravelEnergy): it fires at Energy 24, not 20, 360 minutes
-        // after arriving at work (t=500) - i.e. at t=860 - so Energy is spent exactly down to
-        // the nominal sleepEnergy (20) precisely at arrival home, not below it.
-        var npc = Create(fatigue: new FatigueSettings { gainPerAwakeHour = 12d });
-        npc.AdvanceTo(870d, 7.5d);
-        Assert.That(npc.IsWorkTime, Is.True);
+        // A long commute (300m at 7.5m/min = 40 minutes) eats into the shift, so without
+        // catch-up this NPC would only work 500 of its scheduled 540 minutes. extendForBreaks
+        // must keep it working past the nominal end hour until the full target is met - sleep
+        // must not cut that catch-up short just because the nominal shift has "ended".
+        var npc = new NpcSimulation(300d, new WorkSchedule { startHour = 8, endHour = 17, extendForBreaks = true });
+        npc.AdvanceTo(1020d, 7.5d);
+        // 17:00: nominal shift end, but only 500 of 540 minutes worked - still working.
+        Assert.That(npc.State, Is.EqualTo(NpcState.Working));
+        Assert.That(npc.WorkedMinutes, Is.EqualTo(500d).Within(1e-7));
+        npc.AdvanceTo(1060d, 7.5d);
+        // 17:40: the full 540 minutes is now worked - only now does it head home.
         Assert.That(npc.State, Is.EqualTo(NpcState.GoingHome));
-        Assert.That(npc.DistanceFromHome, Is.GreaterThan(0d));
-        npc.AdvanceTo(880d, 7.5d);
+        Assert.That(npc.WorkedMinutes, Is.EqualTo(540d).Within(1e-7));
+        npc.AdvanceTo(1100d, 7.5d);
+        // 18:20, arrived home (40-minute walk): goes straight to sleep, as normal.
         Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
         Assert.That(npc.DistanceFromHome, Is.Zero);
-        Assert.That(npc.Energy, Is.EqualTo(20d).Within(1e-7));
-        npc.AdvanceTo(1360d, 7.5d);
-        Assert.That(npc.State, Is.EqualTo(NpcState.Home));
-        Assert.That(npc.Fatigue, Is.EqualTo(0d).Within(1e-6));
     }
 
     [TestCase(7.5d)]
@@ -124,32 +144,16 @@ public sealed class NpcSimulationTests
     [Test]
     public void RealisticCommuteSleepOnsetNeverDriftsAcrossManyWeeks()
     {
-        // Mirrors a real Dorf1 worker: a 07:00-17:00 shift, a real (non-zero) walk home, and
-        // the sleepThreshold/gainPerAwakeHour pairing tuned for a 16h-awake/8h-sleep cycle.
-        // Without HomeTravelEnergy anticipating the walk home, that walk's minutes are pure
-        // overhead on top of the intended 24h cycle, drifting the daily rest trigger a little
-        // later every day until, given enough weeks, it eventually falls inside this exact
-        // shift window - which is precisely what happened before this fix.
-        NpcSimulation Build() => new NpcSimulation(220d, new WorkSchedule { startHour = 7, endHour = 17 },
-            new FatigueSettings { initialFatigue = 0d, gainPerAwakeHour = 4d,
-                sleepThreshold = 64d, wakeThreshold = 16d });
-
-        // Advances minute-by-minute (a large jump may land mid-cycle) until the NPC has left
-        // any sleep already in progress and then just entered the next one, returning the
-        // time-of-day that onset happened at.
-        double NextSleepOnset(NpcSimulation npc)
-        {
-            while (npc.State == NpcState.Sleeping) npc.AdvanceTo(npc.TotalMinutes + 1d, 7.5d);
-            while (npc.State != NpcState.Sleeping) npc.AdvanceTo(npc.TotalMinutes + 1d, 7.5d);
-            return npc.TotalMinutes % 1440d;
-        }
+        // Mirrors a real Dorf1 day-shift worker: a 07:00-17:00 shift with a real (non-zero)
+        // walk home. Sleep is scheduled off the work hours themselves, so - unlike the old
+        // energy-threshold rule - there is nothing left that can drift: the onset time of day
+        // must be identical on day zero and six and a half weeks later.
+        NpcSimulation Build() => new NpcSimulation(220d, new WorkSchedule { startHour = 7, endHour = 17 });
 
         var early = Build();
         double earlyOnset = NextSleepOnset(early);
 
-        // A single large jump most of the way there - the "große Zeitsprünge" case - then the
-        // same search: a fast-forward landing mid-cycle must resolve to the same stable onset
-        // time of day that ordinary ticking from day zero does, six and a half weeks later.
+        // A single large jump most of the way there - the "große Zeitsprünge" case.
         var late = Build();
         late.AdvanceTo(45d * 1440d, 7.5d);
         double lateOnset = NextSleepOnset(late);
@@ -158,15 +162,49 @@ public sealed class NpcSimulationTests
     }
 
     [Test]
+    public void LisasOvernightShiftGetsAStableDaytimeSleepWindow()
+    {
+        // Lisa's 23:00-10:00 shift crosses midnight, so her free (and thus sleep-eligible)
+        // hours are entirely during the day. Sleep must settle into a stable daytime window
+        // that never touches 23:00-10:00, on day zero and just as reliably weeks later.
+        NpcSimulation Build() => new NpcSimulation(150d, new WorkSchedule { startHour = 23, endHour = 10 });
+
+        var early = Build();
+        // Already on shift at minute zero (00:00 falls inside 23:00-10:00): no sleep yet.
+        Assert.That(early.State, Is.Not.EqualTo(NpcState.Sleeping));
+        double earlyOnset = NextSleepOnset(early);
+        // The onset must fall strictly after the shift ends (10:00 = minute 600) and strictly
+        // before it starts again (23:00 = minute 1380) - a real daytime window, not a sliver
+        // overlapping either end of the shift.
+        Assert.That(earlyOnset, Is.GreaterThan(600d));
+        Assert.That(earlyOnset, Is.LessThan(1380d));
+
+        var late = Build();
+        late.AdvanceTo(45d * 1440d, 7.5d);
+        double lateOnset = NextSleepOnset(late);
+        Assert.That(lateOnset, Is.EqualTo(earlyOnset).Within(1e-6));
+
+        // Across many weeks of ordinary ticking, sleep must never overlap the shift itself.
+        // Each night's 23:00-10:00 window is checked hour by hour, in real chronological
+        // order (23:00 of night N, then 00:00..09:00 of the following calendar day).
+        var ticking = Build();
+        for (int night = 0; night < 45; night++)
+            for (int hour = 0; hour < 11; hour++)
+            {
+                double t = night * 1440d + 1380d + hour * 60d;
+                ticking.AdvanceTo(t, 7.5d);
+                Assert.That(ticking.State, Is.Not.EqualTo(NpcState.Sleeping),
+                    $"asleep during the night shift, night {night}, {hour} hour(s) after 23:00");
+            }
+    }
+
+    [Test]
     public void RealisticCommuteMultiDayWaitMatchesOrdinaryTicks()
     {
-        // Same realistic shift/commute/fatigue pairing as above, but checking that a single
-        // large jump (as a fast-forward control would issue) lands exactly where incremental
-        // per-tick simulation does - the "große Zeitsprünge" the anticipation math must
-        // survive, not just ordinary per-frame ticking.
-        NpcSimulation Build() => new NpcSimulation(220d, new WorkSchedule { startHour = 7, endHour = 17 },
-            new FatigueSettings { initialFatigue = 0d, gainPerAwakeHour = 4d,
-                sleepThreshold = 64d, wakeThreshold = 16d });
+        // Same realistic shift/commute pairing as above, checking that a single large jump (as
+        // a fast-forward control would issue) lands exactly where incremental per-tick
+        // simulation does - the "große Zeitsprünge" case, not just ordinary per-frame ticking.
+        NpcSimulation Build() => new NpcSimulation(220d, new WorkSchedule { startHour = 7, endHour = 17 });
         const double destination = 45d * 1440d + 611d;
         var jumped = Build();
         var ticking = Build();
@@ -184,14 +222,22 @@ public sealed class NpcSimulationTests
         Assert.Throws<ArgumentOutOfRangeException>(() => npc.AdvanceTo(double.NaN, 7.5d));
         Assert.Throws<ArgumentOutOfRangeException>(() => npc.AdvanceTo(60d, 0d));
         Assert.That(npc.TotalMinutes, Is.Zero);
-        Assert.That(npc.Fatigue, Is.EqualTo(64d));
+    }
+
+    // Advances minute-by-minute (a large jump may land mid-cycle) until the NPC has left any
+    // sleep already in progress and then just entered the next one, returning the time of day
+    // (minutes since midnight) that onset happened at.
+    private static double NextSleepOnset(NpcSimulation npc)
+    {
+        while (npc.State == NpcState.Sleeping) npc.AdvanceTo(npc.TotalMinutes + 1d, 7.5d);
+        while (npc.State != NpcState.Sleeping) npc.AdvanceTo(npc.TotalMinutes + 1d, 7.5d);
+        return npc.TotalMinutes % 1440d;
     }
 
     private static void AssertEquivalent(NpcSimulation a, NpcSimulation b, double tolerance)
     {
         Assert.That(a.State, Is.EqualTo(b.State));
         Assert.That(a.TotalMinutes, Is.EqualTo(b.TotalMinutes));
-        Assert.That(a.Fatigue, Is.EqualTo(b.Fatigue).Within(tolerance));
         Assert.That(a.DistanceFromHome, Is.EqualTo(b.DistanceFromHome).Within(tolerance));
         Assert.That(a.WorkedMinutes, Is.EqualTo(b.WorkedMinutes).Within(tolerance));
         Assert.That(a.SleptMinutes, Is.EqualTo(b.SleptMinutes).Within(tolerance));

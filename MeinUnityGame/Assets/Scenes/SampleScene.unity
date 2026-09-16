@@ -4106,12 +4106,6 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
-  fatigue:
-    initialFatigue: 0
-    gainPerAwakeHour: 4
-    recoveryPerSleepHour: 8
-    sleepThreshold: 64
-    wakeThreshold: 16
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -4375,7 +4369,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: "Hans – Bauer\nZustand: Wird geladen\nZiel: Wird geladen\nSättigung: Wird geladen\nFlüssigkeit: Wird geladen\nEnergie: Wird geladen\nArbeitsstatus: Wird geladen"
+  m_Text: "Hans – Bauer\nZustand: Wird geladen\nZiel: Wird geladen\nSättigung: Wird geladen\nFlüssigkeit: Wird geladen\nArbeitsstatus: Wird geladen"
 --- !u!1 &2700000000
 GameObject:
   m_ObjectHideFlags: 0
@@ -4533,12 +4527,6 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 8
     sundayEndHour: 17
-  fatigue:
-    initialFatigue: 0
-    gainPerAwakeHour: 4
-    recoveryPerSleepHour: 8
-    sleepThreshold: 64
-    wakeThreshold: 16
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -10272,12 +10260,6 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
-  fatigue:
-    initialFatigue: 0
-    gainPerAwakeHour: 4
-    recoveryPerSleepHour: 8
-    sleepThreshold: 64
-    wakeThreshold: 16
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -10453,12 +10435,6 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
-  fatigue:
-    initialFatigue: 0
-    gainPerAwakeHour: 4
-    recoveryPerSleepHour: 8
-    sleepThreshold: 64
-    wakeThreshold: 16
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -11602,12 +11578,6 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
-  fatigue:
-    initialFatigue: 0
-    gainPerAwakeHour: 4
-    recoveryPerSleepHour: 8
-    sleepThreshold: 64
-    wakeThreshold: 16
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -14388,12 +14358,6 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
-  fatigue:
-    initialFatigue: 0
-    gainPerAwakeHour: 4
-    recoveryPerSleepHour: 8
-    sleepThreshold: 64
-    wakeThreshold: 16
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -14624,12 +14588,6 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
-  fatigue:
-    initialFatigue: 0
-    gainPerAwakeHour: 4
-    recoveryPerSleepHour: 8
-    sleepThreshold: 64
-    wakeThreshold: 16
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -29508,12 +29466,6 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 10
     sundayEndHour: 23
-  fatigue:
-    initialFatigue: 0
-    gainPerAwakeHour: 4
-    recoveryPerSleepHour: 8
-    sleepThreshold: 64
-    wakeThreshold: 16
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -29754,12 +29706,6 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
-  fatigue:
-    initialFatigue: 0
-    gainPerAwakeHour: 4
-    recoveryPerSleepHour: 8
-    sleepThreshold: 64
-    wakeThreshold: 16
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -30629,12 +30575,6 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
-  fatigue:
-    initialFatigue: 0
-    gainPerAwakeHour: 4
-    recoveryPerSleepHour: 8
-    sleepThreshold: 64
-    wakeThreshold: 16
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -31504,12 +31444,6 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
-  fatigue:
-    initialFatigue: 0
-    gainPerAwakeHour: 4
-    recoveryPerSleepHour: 8
-    sleepThreshold: 64
-    wakeThreshold: 16
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -32563,12 +32497,6 @@ MonoBehaviour:
     extendForBreaks: 1
     travelCountsAsWork: 1
     workDaysMask: 63
-  fatigue:
-    initialFatigue: 0
-    gainPerAwakeHour: 4
-    recoveryPerSleepHour: 8
-    sleepThreshold: 64
-    wakeThreshold: 16
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -39933,12 +39861,6 @@ MonoBehaviour:
     startHour: 23
     endHour: 10
     commuteBeforeWork: 1
-  fatigue:
-    initialFatigue: 0
-    gainPerAwakeHour: 4
-    recoveryPerSleepHour: 8
-    sleepThreshold: 64
-    wakeThreshold: 16
   supplies:
     initialSatiation: 100
     initialHydration: 100

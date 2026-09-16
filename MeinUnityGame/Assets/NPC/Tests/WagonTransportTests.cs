@@ -28,7 +28,6 @@ public sealed class WagonTransportTests
     }
     private static NpcSimulation Create(Haul job, bool thirst = false) =>
         new NpcSimulation(new Roads(), new WorkSchedule { startHour = 7, endHour = 17 },
-            new FatigueSettings { initialFatigue = 0, gainPerAwakeHour = 0.1 },
             new SupplySettings { initialHydration = thirst ? 20 + 435d * 4 / 60 : 100,
                 hydrationLossPerHour = thirst ? 4 : 0, satiationLossPerHour = 0 },
             () => true, () => true, job,
@@ -98,6 +97,5 @@ public sealed class WagonTransportTests
         Assert.That(jump.DeliveredUnits, Is.EqualTo(tick.DeliveredUnits));
         Assert.That(jump.CargoQuantity, Is.EqualTo(tick.CargoQuantity));
         Assert.That(jump.Position.X, Is.EqualTo(tick.Position.X).Within(1e-6));
-        Assert.That(jump.Energy, Is.EqualTo(tick.Energy).Within(1e-6));
     }
 }

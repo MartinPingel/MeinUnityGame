@@ -14,7 +14,7 @@ Der Marktstand verwendet sein vorhandenes, separates Warenlager. Beide starten l
 - Hans läuft über `RoadRouter` zum vorhandenen Marktstand-Arbeitspunkt. Erst nach
   Ankunft werden alle 10 Einheiten im Marktstand eingelagert und die mitgeführte
   Lieferung gelöscht. Bei abgewiesener Einlagerung behält er seine Ladung.
-- Hunger, Durst und Energie haben weiterhin Vorrang. Eine Unterbrechung erhält die
+- Hunger, Durst und Schlaf haben weiterhin Vorrang. Eine Unterbrechung erhält die
   Ladung; nach der Versorgung bzw. dem Schlaf setzt Hans die Lieferung fort.
   Anschließend richtet er sich nach der aktuellen Arbeitszeit. Kein Produzieren
   während Wegen, Essen, Trinken, Schlaf oder Freizeit.

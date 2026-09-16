@@ -76,7 +76,6 @@ public sealed class NpcDebugDisplay : MonoBehaviour
             text += $"Zustand: {StateName(model.State, agent)}\nZiel: {agent.TargetName}\n";
             text += $"Sättigung: {model.Satiation.ToString("0.0", GermanNumbers)} / 100\n";
             text += $"Flüssigkeit: {model.Hydration.ToString("0.0", GermanNumbers)} / 100\n";
-            text += $"Energie: {model.Energy.ToString("0.0", GermanNumbers)} / 100\n";
             var tools = agent.WorkTools;
             if (tools == null) text += "Werkzeug: nicht erforderlich\n";
             else

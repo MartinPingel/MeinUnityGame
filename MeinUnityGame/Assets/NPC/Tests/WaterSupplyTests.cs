@@ -22,9 +22,8 @@ public sealed class WaterSupplyTests
         public bool TryPickUp(int q) { if (!HasBatch(q)) return false; Drawn += q; return true; }
         public bool TryDeliver(int q) { if (!Accept) return false; Stock.Add("Getränke", q); return true; }
     }
-    private static NpcSimulation Create(Water water, SupplySettings supplies = null, FatigueSettings energy = null) =>
+    private static NpcSimulation Create(Water water, SupplySettings supplies = null) =>
         new NpcSimulation(new Road(), new WorkSchedule { startHour = 10, endHour = 23 },
-            energy ?? new FatigueSettings { initialFatigue = 0, gainPerAwakeHour = 0.1 },
             supplies ?? new SupplySettings { satiationLossPerHour = 0, hydrationLossPerHour = 0 },
             () => true, () => water.Stock.TryRemove("Getränke", 1), water,
             new WorkDeliverySettings { deliveryQuantity = 40, unitsPerWorkHour = 1 });
@@ -82,20 +81,26 @@ public sealed class WaterSupplyTests
     [Test]
     public void SleepInterruptionKeepsCargoAndFailedDepositDoesNotLoseIt()
     {
-        var water = new Water(); var npc = Create(water, energy: new FatigueSettings {
-            initialFatigue = 0, gainPerAwakeHour = 80d * 60 / 635 });
-        npc.AdvanceTo(700, 10);
+        var water = new Water(); water.Stock.Add("Getränke", 20); var npc = Create(water);
+        npc.AdvanceTo(1355, 10);
+        water.Stock.TryRemove("Getränke", 1);
+        npc.AdvanceTo(1375, 10);
+        Assert.That(npc.CargoQuantity, Is.EqualTo(40));
+        // 23:00 (minute 1380) arrives mid-delivery: sleep - purely schedule-triggered now,
+        // never energy-triggered - still outranks finishing the trip, same as it always did.
+        npc.AdvanceTo(1405, 10);
         Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
         Assert.That(npc.CargoQuantity, Is.EqualTo(40));
-        Assert.That(water.Stock.GetQuantity("Getränke"), Is.Zero);
+        Assert.That(water.Stock.GetQuantity("Getränke"), Is.EqualTo(19));
         water.Accept = false;
-        npc.AdvanceTo(1250, 10);
+        // Wakes 8 hours after arriving home (1405 + 480 = 1885), immediately retries the
+        // still-carried delivery, and arrives at the bank 10 minutes later (1895).
+        npc.AdvanceTo(1895, 10);
         Assert.That(npc.CargoQuantity, Is.EqualTo(40));
         water.Accept = true;
-        npc.AdvanceTo(1251, 10);
+        npc.AdvanceTo(1896, 10);
         Assert.That(npc.CargoQuantity, Is.Zero);
-        Assert.That(water.Stock.GetQuantity("Getränke"), Is.EqualTo(40));
-        Assert.That(water.Drawn, Is.EqualTo(40));
+        Assert.That(water.Stock.GetQuantity("Getränke"), Is.EqualTo(59));
     }
 
     [Test]
@@ -117,24 +122,28 @@ public sealed class WaterSupplyTests
     }
 
     [Test]
-    public void LateLoadedTripFinishesThenReturnsHome()
+    public void LateLoadedTripIsAbandonedForSleepAndKeepsTheCargo()
     {
         var water = new Water(); water.Stock.Add("Getränke", 20); var npc = Create(water);
         npc.AdvanceTo(1355, 10);
         water.Stock.TryRemove("Getränke", 1);
         npc.AdvanceTo(1375, 10);
         Assert.That(npc.CargoQuantity, Is.EqualTo(40));
-        npc.AdvanceTo(1395, 10);
-        Assert.That(water.Stock.GetQuantity("Getränke"), Is.EqualTo(59));
-        Assert.That(npc.Target, Is.EqualTo(NpcPlace.Home));
+        // 23:00 (minute 1380) arrives mid-delivery: sleep - purely schedule-triggered now,
+        // never energy-triggered - still outranks finishing the trip, same as it always did.
+        npc.AdvanceTo(1500, 10);
+        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
+        Assert.That(npc.DistanceFromHome, Is.Zero);
+        Assert.That(npc.CargoQuantity, Is.EqualTo(40));
+        Assert.That(water.Stock.GetQuantity("Getränke"), Is.EqualTo(19));
     }
 
     [Test]
     public void MultiDayWaitMatchesTicksAndEveryDrawnUnitIsAccountedFor()
     {
         var a = new Water(); var b = new Water();
-        var jump = Create(a, new SupplySettings(), new FatigueSettings());
-        var tick = Create(b, new SupplySettings(), new FatigueSettings());
+        var jump = Create(a, new SupplySettings());
+        var tick = Create(b, new SupplySettings());
         const double end = 1440 * 5 + 700;
         jump.AdvanceTo(end, 10);
         for (double t = 0.37; t < end; t += 0.37) tick.AdvanceTo(t, 10);
@@ -145,6 +154,5 @@ public sealed class WaterSupplyTests
         Assert.That(jump.State, Is.EqualTo(tick.State));
         Assert.That(jump.Position.X, Is.EqualTo(tick.Position.X).Within(1e-5));
         Assert.That(jump.Hydration, Is.EqualTo(tick.Hydration).Within(1e-5));
-        Assert.That(jump.Energy, Is.EqualTo(tick.Energy).Within(1e-5));
     }
 }

@@ -35,10 +35,9 @@ public sealed class NpcDeliveryTests
     }
 
     private static NpcSimulation Create(Stores stores, SupplySettings supplies = null,
-        FatigueSettings fatigue = null, double rate = 6d, INpcNavigation road = null)
+        double rate = 6d, INpcNavigation road = null)
     {
         return new NpcSimulation(road ?? new Road(), new WorkSchedule(),
-            fatigue ?? new FatigueSettings { initialFatigue = 0d, gainPerAwakeHour = 0.1d },
             supplies ?? new SupplySettings { satiationLossPerHour = 0d, hydrationLossPerHour = 0d },
             () => true, () => true, stores,
             new WorkDeliverySettings { unitsPerWorkHour = rate, deliveryQuantity = 3 });
@@ -121,17 +120,20 @@ public sealed class NpcDeliveryTests
     public void SleepInterruptsDeliveryAndAfterLateArrivalHansReturnsHome()
     {
         var stores = new Stores();
-        var npc = Create(stores, fatigue: new FatigueSettings {
-            initialFatigue = 0d, gainPerAwakeHour = 80d * 60d / 525d });
-        npc.AdvanceTo(600d, 10d);
-        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
+        var npc = Create(stores);
+        npc.AdvanceTo(1015d, 10d);
+        stores.Farm = 3;
+        npc.AdvanceTo(1020d, 10d);
         Assert.That(npc.CargoQuantity, Is.EqualTo(3));
-        Assert.That(stores.Produced, Is.EqualTo(3));
+        Assert.That(npc.State, Is.EqualTo(NpcState.GoingHome));
+        // 17:00 (minute 1020) arrives mid-delivery: sleep - purely schedule-triggered now,
+        // never energy-triggered - still outranks finishing the trip, same as it always did.
         npc.AdvanceTo(1100d, 10d);
         Assert.That(npc.IsWorkTime, Is.False);
-        Assert.That(npc.Target, Is.EqualTo(NpcPlace.Home));
-        Assert.That(stores.Market, Is.EqualTo(3));
-        Assert.That(npc.CargoQuantity, Is.Zero);
+        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
+        Assert.That(npc.DistanceFromHome, Is.Zero);
+        Assert.That(npc.CargoQuantity, Is.EqualTo(3));
+        Assert.That(stores.Market, Is.Zero);
         Conserved(stores, npc);
     }
 
@@ -157,8 +159,8 @@ public sealed class NpcDeliveryTests
     {
         var jumpStores = new Stores();
         var tickStores = new Stores();
-        var jump = Create(jumpStores, new SupplySettings(), new FatigueSettings());
-        var tick = Create(tickStores, new SupplySettings(), new FatigueSettings());
+        var jump = Create(jumpStores, new SupplySettings());
+        var tick = Create(tickStores, new SupplySettings());
         const double end = 8d * 1440d + 530.25d;
         jump.AdvanceTo(end, 10d);
         for (double t = 0.37d; t < end; t += 0.37d)
@@ -175,7 +177,6 @@ public sealed class NpcDeliveryTests
         Assert.That(jump.State, Is.EqualTo(tick.State));
         Assert.That(jump.Target, Is.EqualTo(tick.Target));
         Assert.That(jump.Position.X, Is.EqualTo(tick.Position.X).Within(1e-5));
-        Assert.That(jump.Energy, Is.EqualTo(tick.Energy).Within(1e-5));
         Assert.That(jump.Satiation, Is.EqualTo(tick.Satiation).Within(1e-5));
         Assert.That(jump.Hydration, Is.EqualTo(tick.Hydration).Within(1e-5));
         Assert.That(jump.WorkedMinutes, Is.EqualTo(tick.WorkedMinutes).Within(1e-5));

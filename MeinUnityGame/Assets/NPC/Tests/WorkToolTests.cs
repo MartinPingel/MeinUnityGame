@@ -32,10 +32,9 @@ public sealed class WorkToolTests
         public bool TryPickUp(int quantity) { if (Food < quantity) return false; Food -= quantity; return true; }
         public bool TryDeliver(int quantity) { Delivered += quantity; return true; }
     }
-    private static NpcSimulation Create(Equipment equipment, Farm farm = null, SupplySettings supplies = null,
-        FatigueSettings fatigue = null) => new NpcSimulation(new Road(),
+    private static NpcSimulation Create(Equipment equipment, Farm farm = null, SupplySettings supplies = null)
+        => new NpcSimulation(new Road(),
             new WorkSchedule { startHour = 8, endHour = 17 },
-            fatigue ?? new FatigueSettings { initialFatigue = 0, gainPerAwakeHour = 0.1 },
             supplies ?? new SupplySettings { satiationLossPerHour = 0, hydrationLossPerHour = 0 },
             () => true, () => true, farm,
             farm == null ? null : new WorkDeliverySettings { unitsPerWorkHour = 6, deliveryQuantity = 2 }, equipment);
@@ -124,8 +123,8 @@ public sealed class WorkToolTests
     {
         var a = new Equipment(3, wear: 10); var b = new Equipment(3, wear: 10);
         var fa = new Farm { Deliveries = true }; var fb = new Farm { Deliveries = true };
-        var jump = Create(a, fa, new SupplySettings(), new FatigueSettings());
-        var tick = Create(b, fb, new SupplySettings(), new FatigueSettings());
+        var jump = Create(a, fa, new SupplySettings());
+        var tick = Create(b, fb, new SupplySettings());
         const double end = 10 * 1440 + 800;
         jump.AdvanceTo(end, 10);
         for (double t = 0.37; t < end; t += 0.37) tick.AdvanceTo(t, 10);
@@ -137,7 +136,6 @@ public sealed class WorkToolTests
         Assert.That(fa.Food, Is.EqualTo(fb.Food));
         Assert.That(fa.Delivered, Is.EqualTo(fb.Delivered));
         Assert.That(jump.CargoQuantity, Is.EqualTo(tick.CargoQuantity));
-        Assert.That(jump.Energy, Is.EqualTo(tick.Energy).Within(1e-5));
         Assert.That(jump.State, Is.EqualTo(tick.State));
         Assert.That(jump.Position.X, Is.EqualTo(tick.Position.X).Within(1e-5));
     }

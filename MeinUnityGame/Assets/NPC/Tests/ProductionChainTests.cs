@@ -36,7 +36,7 @@ public sealed class ProductionChainTests
 
     private static NpcSimulation Worker(Road road, Job job, int start, int end, double rate, int batch) =>
         new NpcSimulation(road, new WorkSchedule { startHour = start, endHour = end },
-            new FatigueSettings(), new SupplySettings(), () => true, () => true, job,
+            new SupplySettings(), () => true, () => true, job,
             new WorkDeliverySettings { unitsPerWorkHour = rate, deliveryQuantity = batch });
 
     [Test]

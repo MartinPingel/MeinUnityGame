@@ -4110,7 +4110,7 @@ MonoBehaviour:
     initialFatigue: 64
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
-    sleepThreshold: 80
+    sleepThreshold: 64
     wakeThreshold: 16
   supplies:
     initialSatiation: 100
@@ -4537,7 +4537,7 @@ MonoBehaviour:
     initialFatigue: 72
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
-    sleepThreshold: 80
+    sleepThreshold: 64
     wakeThreshold: 16
   supplies:
     initialSatiation: 100
@@ -10276,7 +10276,7 @@ MonoBehaviour:
     initialFatigue: 64
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
-    sleepThreshold: 80
+    sleepThreshold: 64
     wakeThreshold: 16
   supplies:
     initialSatiation: 100
@@ -10457,7 +10457,7 @@ MonoBehaviour:
     initialFatigue: 64
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
-    sleepThreshold: 80
+    sleepThreshold: 64
     wakeThreshold: 16
   supplies:
     initialSatiation: 100
@@ -11606,7 +11606,7 @@ MonoBehaviour:
     initialFatigue: 64
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
-    sleepThreshold: 80
+    sleepThreshold: 64
     wakeThreshold: 16
   supplies:
     initialSatiation: 100
@@ -14392,7 +14392,7 @@ MonoBehaviour:
     initialFatigue: 64
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
-    sleepThreshold: 80
+    sleepThreshold: 64
     wakeThreshold: 16
   supplies:
     initialSatiation: 100
@@ -14628,7 +14628,7 @@ MonoBehaviour:
     initialFatigue: 64
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
-    sleepThreshold: 80
+    sleepThreshold: 64
     wakeThreshold: 16
   supplies:
     initialSatiation: 100
@@ -29512,7 +29512,7 @@ MonoBehaviour:
     initialFatigue: 72
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
-    sleepThreshold: 80
+    sleepThreshold: 64
     wakeThreshold: 16
   supplies:
     initialSatiation: 100
@@ -29758,7 +29758,7 @@ MonoBehaviour:
     initialFatigue: 64
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
-    sleepThreshold: 80
+    sleepThreshold: 64
     wakeThreshold: 16
   supplies:
     initialSatiation: 100
@@ -30633,7 +30633,7 @@ MonoBehaviour:
     initialFatigue: 64
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
-    sleepThreshold: 80
+    sleepThreshold: 64
     wakeThreshold: 16
   supplies:
     initialSatiation: 100
@@ -31508,7 +31508,7 @@ MonoBehaviour:
     initialFatigue: 64
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
-    sleepThreshold: 80
+    sleepThreshold: 64
     wakeThreshold: 16
   supplies:
     initialSatiation: 100
@@ -32567,7 +32567,7 @@ MonoBehaviour:
     initialFatigue: 64
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
-    sleepThreshold: 80
+    sleepThreshold: 64
     wakeThreshold: 16
   supplies:
     initialSatiation: 100
@@ -39937,7 +39937,7 @@ MonoBehaviour:
     initialFatigue: 72
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
-    sleepThreshold: 80
+    sleepThreshold: 64
     wakeThreshold: 16
   supplies:
     initialSatiation: 100

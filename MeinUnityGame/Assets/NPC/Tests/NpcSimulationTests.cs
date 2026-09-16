@@ -199,6 +199,93 @@ public sealed class NpcSimulationTests
     }
 
     [Test]
+    public void FixedSleepScheduleSleepsExactlyTwentyTwoToSixEveryNight()
+    {
+        // Opt-in fixedSleepSchedule (used by all real Dorf1 NPCs except Gunnar, Florian and
+        // Lisa): sleep always sits at the fixed 22:00-06:00 clock window, not right after the
+        // shift ends. This shift (08:00-17:00) sits entirely outside that window, so there is
+        // never a collision with work.
+        NpcSimulation Build() => new NpcSimulation(200d, new WorkSchedule
+        {
+            startHour = 8, endHour = 17, fixedSleepSchedule = true, sleepStartHour = 22, sleepEndHour = 6
+        });
+
+        var npc = Build();
+        // Idle between the shift ending and the fixed window opening: not asleep yet.
+        npc.AdvanceTo(1100d, 7.5d); // 18:20, well after work, well before 22:00.
+        Assert.That(npc.State, Is.Not.EqualTo(NpcState.Sleeping));
+        npc.AdvanceTo(1320d, 7.5d); // 22:00 exactly: the fixed window opens.
+        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
+        npc.AdvanceTo(1799d, 7.5d); // 05:59 next day: still asleep (only 7h59m elapsed).
+        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
+        npc.AdvanceTo(1800d, 7.5d); // 06:00 next day: exactly 8 hours done, wakes.
+        Assert.That(npc.State, Is.Not.EqualTo(NpcState.Sleeping));
+        Assert.That(npc.SleptMinutes, Is.EqualTo(480d).Within(1e-7));
+
+        // Stable over many weeks and large jumps: the onset time of day never drifts.
+        var early = Build();
+        double earlyOnset = NextSleepOnset(early);
+        Assert.That(earlyOnset, Is.EqualTo(1320d).Within(1e-6)); // 22:00.
+
+        var late = Build();
+        late.AdvanceTo(60d * 1440d, 7.5d);
+        double lateOnset = NextSleepOnset(late);
+        Assert.That(lateOnset, Is.EqualTo(earlyOnset).Within(1e-6));
+
+        // Hour-by-hour across many nights: never asleep during 08:00-17:00 work hours, and
+        // always asleep throughout 22:00-06:00.
+        var ticking = Build();
+        for (int day = 0; day < 60; day++)
+        {
+            for (int hour = 8; hour < 17; hour++)
+            {
+                ticking.AdvanceTo(day * 1440d + hour * 60d, 7.5d);
+                Assert.That(ticking.State, Is.Not.EqualTo(NpcState.Sleeping),
+                    $"asleep during work hours, day {day}, {hour}:00");
+            }
+            for (int hour = 22; hour < 24; hour++)
+            {
+                ticking.AdvanceTo(day * 1440d + hour * 60d, 7.5d);
+                Assert.That(ticking.State, Is.EqualTo(NpcState.Sleeping),
+                    $"awake during the fixed sleep window, day {day}, {hour}:00");
+            }
+        }
+    }
+
+    [Test]
+    public void FixedSleepScheduleStillWaitsForExtendForBreaksCatchUp()
+    {
+        // A long commute eats into the shift; extendForBreaks keeps this NPC working past the
+        // nominal end hour to make up the shortfall. The fixed sleep window must never cut that
+        // catch-up short, even though 22:00 already lies within the (wraparound) window.
+        var npc = new NpcSimulation(300d, new WorkSchedule
+        {
+            startHour = 8, endHour = 17, extendForBreaks = true,
+            fixedSleepSchedule = true, sleepStartHour = 22, sleepEndHour = 6
+        });
+        npc.AdvanceTo(1020d, 7.5d); // 17:00: only 500 of 540 scheduled minutes worked.
+        Assert.That(npc.State, Is.EqualTo(NpcState.Working));
+        npc.AdvanceTo(1060d, 7.5d); // 17:40: the full 540 minutes is now worked.
+        Assert.That(npc.State, Is.EqualTo(NpcState.GoingHome));
+        npc.AdvanceTo(1100d, 7.5d); // 18:20, arrived home: idle, not yet in the fixed window.
+        Assert.That(npc.State, Is.Not.EqualTo(NpcState.Sleeping));
+        npc.AdvanceTo(1320d, 7.5d); // 22:00: the fixed window opens, now asleep.
+        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
+    }
+
+    [Test]
+    public void FixedSleepScheduleLeavesNonOptedInSchedulesUnaffected()
+    {
+        // Gunnar/Florian/Lisa keep the plain schedule-driven mechanism (fixedSleepSchedule
+        // defaults to false): sleep still follows right after the shift ends, exactly as
+        // before this feature existed.
+        var npc = Create();
+        Assert.That(npc.State, Is.EqualTo(NpcState.Home));
+        npc.AdvanceTo(1040d, 7.5d);
+        Assert.That(npc.State, Is.EqualTo(NpcState.Sleeping));
+    }
+
+    [Test]
     public void RealisticCommuteMultiDayWaitMatchesOrdinaryTicks()
     {
         // Same realistic shift/commute pairing as above, checking that a single large jump (as

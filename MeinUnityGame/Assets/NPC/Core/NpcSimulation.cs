@@ -30,9 +30,11 @@ namespace Village.Npc
         // owes work" check false before any shift has ever begun.
         private double shiftWorkBaseline = double.NegativeInfinity;
         private bool wasWorkWindow;
-        // Edge-triggered (like wasWorkWindow/wasBreakfastWindow): true for the whole stretch
-        // once today's work (including any owed extendForBreaks catch-up) has concluded, so
-        // sleep is requested exactly once per such stretch, not re-requested every later tick.
+        // Edge-triggered (like wasWorkWindow/wasBreakfastWindow): true for the whole off-duty
+        // stretch - by default, once today's work (including any owed extendForBreaks
+        // catch-up) has concluded; opt-in (WorkSchedule.fixedSleepSchedule), the fixed daily
+        // clock window instead - so sleep is requested exactly once per such stretch, not
+        // re-requested every later tick.
         // Starts true: every NPC boots already rested (never mid-sleep), so a schedule that is
         // already off duty at minute zero never immediately re-triggers a full 8-hour session
         // there - it only will once its first real shift concludes, exactly like every later
@@ -159,7 +161,9 @@ namespace Village.Npc
                 commuteBeforeWork = schedule.commuteBeforeWork, extendForBreaks = schedule.extendForBreaks,
                 travelCountsAsWork = schedule.travelCountsAsWork, workDaysMask = schedule.workDaysMask,
                 sundayOverride = schedule.sundayOverride, sundayStartHour = schedule.sundayStartHour,
-                sundayEndHour = schedule.sundayEndHour, breakfastEnabled = schedule.breakfastEnabled };
+                sundayEndHour = schedule.sundayEndHour, breakfastEnabled = schedule.breakfastEnabled,
+                fixedSleepSchedule = schedule.fixedSleepSchedule, sleepStartHour = schedule.sleepStartHour,
+                sleepEndHour = schedule.sleepEndHour };
             dailyTargetMinutes = ((work.endHour - work.startHour + 24) % 24) * 60d;
             supplies = new SupplySettings
             {
@@ -279,6 +283,9 @@ namespace Village.Npc
             // window's own start/end, so a large jump never skips over it unevaluated -
             // work.NextBoundary above only knows about startHour/endHour, not startHour-1.
             if (work.breakfastEnabled) step = Math.Min(step, work.NextBreakfastBoundary(TotalMinutes) - TotalMinutes);
+            // Opt-in (WorkSchedule.fixedSleepSchedule): also stop exactly at the fixed sleep
+            // window's own start/end, for the same reason.
+            if (work.fixedSleepSchedule) step = Math.Min(step, work.NextFixedSleepBoundary(TotalMinutes) - TotalMinutes);
             if (commuteMinutes > 0d)
             {
                 double departure = Math.Floor(TotalMinutes / 1440d) * 1440d
@@ -479,12 +486,17 @@ namespace Village.Npc
             bool stillOwesWork = extendActiveNow && !isWorkTimeNow &&
                 WorkedMinutes - shiftWorkBaseline < dailyTargetMinutes - Epsilon;
 
-            // Fixed rule: every NPC sleeps a full 8 hours once a day. Triggered purely by the
-            // work schedule - the instant today's work (including any owed extendForBreaks
-            // catch-up) concludes - never by a need value, so it always lines up with that
-            // NPC's own hours and never fires mid-shift. Edge-triggered like wasWorkWindow/
-            // wasBreakfastWindow so it fires exactly once per off-duty stretch.
-            bool offDutyNow = !isWorkTimeNow && !stillOwesWork;
+            // Fixed rule: every NPC sleeps a full 8 hours once a day. By default, triggered
+            // purely by the work schedule - the instant today's work (including any owed
+            // extendForBreaks catch-up) concludes - never by a need value, so it always lines
+            // up with that NPC's own hours and never fires mid-shift. Opt-in
+            // (WorkSchedule.fixedSleepSchedule): instead trigger at a fixed daily clock window
+            // (sleepStartHour-sleepEndHour), still gated by isWorkTimeNow/stillOwesWork so a
+            // shift that runs into the window is never interrupted. Edge-triggered like
+            // wasWorkWindow/wasBreakfastWindow so it fires exactly once per off-duty stretch.
+            bool offDutyNow = work.fixedSleepSchedule
+                ? work.IsFixedSleepTime(TotalMinutes) && !isWorkTimeNow && !stillOwesWork
+                : !isWorkTimeNow && !stillOwesWork;
             if (offDutyNow && !wasOffDuty) seekingRest = true;
             wasOffDuty = offDutyNow;
             // Fixed rule: wake only once the full 8 hours have elapsed.

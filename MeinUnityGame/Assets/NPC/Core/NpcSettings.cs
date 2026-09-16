@@ -34,6 +34,14 @@ namespace Village.Npc
         // Off by default: an NPC without this keeps its existing hunger/thirst-only tavern
         // visits, unaffected.
         public bool breakfastEnabled;
+        // Opt-in: sleep at a fixed clock window (sleepStartHour-sleepEndHour) every day,
+        // instead of the default "right after today's work concludes". Off by default: an
+        // NPC without this keeps its existing schedule-driven sleep timing, unaffected. Only
+        // meant for NPCs whose whole shift (every day it runs) already sits outside the fixed
+        // window - it does not itself avoid a work/sleep collision.
+        public bool fixedSleepSchedule;
+        public int sleepStartHour = 22;
+        public int sleepEndHour = 6;
 
         private static bool IsSunday(double minutes) => (int)Math.Floor(minutes / 1440d) % 7 == 6; // day 0 = Monday
 
@@ -93,6 +101,31 @@ namespace Village.Npc
             return Math.Min(start, end);
         }
 
+        // Opt-in (fixedSleepSchedule): true during the fixed daily sleep window, regardless
+        // of work hours - callers are responsible for only enabling this where that window
+        // never overlaps the NPC's own shift (see NpcSimulation).
+        internal bool IsFixedSleepTime(double minutes)
+        {
+            if (!fixedSleepSchedule) return false;
+            double hour = (minutes % 1440d) / 60d;
+            return sleepStartHour < sleepEndHour
+                ? hour >= sleepStartHour && hour < sleepEndHour
+                : hour >= sleepStartHour || hour < sleepEndHour;
+        }
+
+        // Mirrors NextBoundary for the fixed sleep window's own start/end, so a large time
+        // jump never skips over it unevaluated.
+        internal double NextFixedSleepBoundary(double minutes)
+        {
+            if (!fixedSleepSchedule) return double.PositiveInfinity;
+            double day = Math.Floor(minutes / 1440d) * 1440d;
+            double start = day + sleepStartHour * 60d;
+            double end = day + sleepEndHour * 60d;
+            if (start <= minutes) start += 1440d;
+            if (end <= minutes) end += 1440d;
+            return Math.Min(start, end);
+        }
+
         public void Validate()
         {
             if (startHour < 0 || startHour > 23 || endHour < 0 || endHour > 23 || startHour == endHour)
@@ -102,6 +135,9 @@ namespace Village.Npc
             if (sundayOverride && (sundayStartHour < 0 || sundayStartHour > 23 ||
                 sundayEndHour < 0 || sundayEndHour > 23 || sundayStartHour == sundayEndHour))
                 throw new ArgumentException("Sunday work hours must be distinct hours between 0 and 23.");
+            if (fixedSleepSchedule && (sleepStartHour < 0 || sleepStartHour > 23 ||
+                sleepEndHour < 0 || sleepEndHour > 23 || sleepStartHour == sleepEndHour))
+                throw new ArgumentException("Fixed sleep hours must be distinct hours between 0 and 23.");
         }
     }
 

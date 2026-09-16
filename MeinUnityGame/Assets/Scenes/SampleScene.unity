@@ -4106,6 +4106,9 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
+    fixedSleepSchedule: 1
+    sleepStartHour: 22
+    sleepEndHour: 6
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -10260,6 +10263,9 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
+    fixedSleepSchedule: 1
+    sleepStartHour: 22
+    sleepEndHour: 6
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -10435,6 +10441,9 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
+    fixedSleepSchedule: 1
+    sleepStartHour: 22
+    sleepEndHour: 6
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -11578,6 +11587,9 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
+    fixedSleepSchedule: 1
+    sleepStartHour: 22
+    sleepEndHour: 6
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -14358,6 +14370,9 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
+    fixedSleepSchedule: 1
+    sleepStartHour: 22
+    sleepEndHour: 6
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -14588,6 +14603,9 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
+    fixedSleepSchedule: 1
+    sleepStartHour: 22
+    sleepEndHour: 6
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -29706,6 +29724,9 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
+    fixedSleepSchedule: 1
+    sleepStartHour: 22
+    sleepEndHour: 6
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -30575,6 +30596,9 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
+    fixedSleepSchedule: 1
+    sleepStartHour: 22
+    sleepEndHour: 6
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -31444,6 +31468,9 @@ MonoBehaviour:
     sundayOverride: 1
     sundayStartHour: 12
     sundayEndHour: 17
+    fixedSleepSchedule: 1
+    sleepStartHour: 22
+    sleepEndHour: 6
   supplies:
     initialSatiation: 100
     initialHydration: 100
@@ -32497,6 +32524,9 @@ MonoBehaviour:
     extendForBreaks: 1
     travelCountsAsWork: 1
     workDaysMask: 63
+    fixedSleepSchedule: 1
+    sleepStartHour: 22
+    sleepEndHour: 6
   supplies:
     initialSatiation: 100
     initialHydration: 100

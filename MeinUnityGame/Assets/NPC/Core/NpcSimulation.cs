@@ -499,8 +499,16 @@ namespace Village.Npc
                 : !isWorkTimeNow && !stillOwesWork;
             if (offDutyNow && !wasOffDuty) seekingRest = true;
             wasOffDuty = offDutyNow;
-            // Fixed rule: wake only once the full 8 hours have elapsed.
-            if (State == NpcState.Sleeping && TotalMinutes >= sleepSessionStart + FullSleepMinutes - Epsilon)
+            // Fixed rule: wake once the full 8 hours have elapsed - or immediately if the next
+            // shift has already started first. A schedule-driven NPC (fixedSleepSchedule off)
+            // whose turnaround between two shifts is shorter than a full 8h rest (e.g. a late
+            // Sunday shift followed by an early Monday one) would otherwise still be marked
+            // Sleeping minutes into the new shift; work start must always take priority over
+            // finishing the rest, never the other way round. A no-op for every schedule whose
+            // 8h session already completes before its own next shift, which is every other
+            // case today - only the tight turnaround this guards is actually shortened.
+            if (State == NpcState.Sleeping &&
+                (TotalMinutes >= sleepSessionStart + FullSleepMinutes - Epsilon || isWorkTimeNow))
                 seekingRest = false;
             // Opt-in (WorkSchedule.breakfastEnabled): a fixed Monday-Saturday breakfast hour
             // immediately before startHour, requesting both food and drink through the exact

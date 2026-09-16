@@ -199,6 +199,72 @@ public sealed class NpcSimulationTests
     }
 
     [Test]
+    public void LateSundayShiftNeverLeavesSleepOverridingMondaysEarlyStart()
+    {
+        // Mirrors Florian's real schedule: a 07:00-21:00 weekday shift but a longer Sunday
+        // shift (10:00-23:00, via sundayOverride) with a commute home. The Sunday-to-Monday
+        // turnaround (23:00 to 07:00 is exactly 8h) leaves no room for the walk home on top
+        // of a full 8h rest, so without capping the session at the next shift's own start,
+        // this NPC would still show as Sleeping minutes into Monday's 07:00 shift - work
+        // start must always win over finishing the rest.
+        // Advances minute-by-minute (as LisasOvernightShiftGetsAStableDaytimeSleepWindow
+        // does) rather than in one large jump, so this exercises the same fine-grained
+        // ticking the real game uses every frame.
+        NpcSimulation Build() => new NpcSimulation(195d, new WorkSchedule
+        {
+            startHour = 7, endHour = 21, commuteBeforeWork = true,
+            sundayOverride = true, sundayStartHour = 10, sundayEndHour = 23
+        });
+
+        // Day 0 is Monday, so day 6 is the first Sunday and day 7 the following Monday.
+        // Walk through that whole transition minute by minute, tracking the Sunday-night
+        // sleep session's own start/end (by state-change edges) so its duration can be
+        // measured on its own, independently of whatever was slept on prior nights.
+        var npc = Build();
+        double? sessionStartTotal = null;
+        double? sessionDuration = null;
+        for (double minute = 6d * 1440d; minute <= 7d * 1440d + 480d; minute += 1d)
+        {
+            bool wasAsleep = npc.State == NpcState.Sleeping;
+            double sleptBeforeTick = npc.SleptMinutes;
+            npc.AdvanceTo(minute, 7.5d);
+            bool nowAsleep = npc.State == NpcState.Sleeping;
+            if (nowAsleep && !wasAsleep) sessionStartTotal = sleptBeforeTick;
+            if (wasAsleep && !nowAsleep && sessionStartTotal.HasValue)
+                sessionDuration = npc.SleptMinutes - sessionStartTotal.Value;
+            // From Monday's 07:00 shift start (minute 7*1440 + 420 = 10500) onward, work
+            // start must always have already won: never still Sleeping past that point.
+            if (minute >= 7d * 1440d + 420d)
+                Assert.That(npc.State, Is.Not.EqualTo(NpcState.Sleeping),
+                    $"still asleep at minute {minute}, after Monday's 07:00 shift start");
+        }
+        Assert.That(sessionDuration, Is.Not.Null, "should still fall asleep Sunday night, and wake up again");
+        // Capped short of a full 480-minute session (by roughly the walk-home time), but
+        // not degenerately short - only that one tight turnaround is affected at all.
+        Assert.That(sessionDuration.Value, Is.LessThan(480d));
+        Assert.That(sessionDuration.Value, Is.GreaterThan(400d));
+
+        // Every other, non-colliding night that same week still gets the full, uncapped
+        // 8-hour session - this fix must not shorten sleep anywhere it does not have to.
+        var normalNight = Build();
+        double firstSleptTotal = 0d;
+        bool sawSleepEnd = false;
+        for (double minute = 0d; minute <= 2d * 1440d && !sawSleepEnd; minute += 1d)
+        {
+            bool wasAsleep = normalNight.State == NpcState.Sleeping;
+            normalNight.AdvanceTo(minute, 7.5d);
+            if (wasAsleep && normalNight.State != NpcState.Sleeping)
+            {
+                firstSleptTotal = normalNight.SleptMinutes;
+                sawSleepEnd = true;
+            }
+        }
+        Assert.That(sawSleepEnd, Is.True, "should complete a full sleep session within the first two days");
+        Assert.That(firstSleptTotal, Is.EqualTo(480d).Within(1e-7),
+            "an ordinary weekday-to-weekday night must still sleep exactly 8 hours");
+    }
+
+    [Test]
     public void FixedSleepScheduleSleepsExactlyTwentyTwoToSixEveryNight()
     {
         // Opt-in fixedSleepSchedule (used by all real Dorf1 NPCs except Gunnar, Florian and

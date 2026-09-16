@@ -4107,7 +4107,7 @@ MonoBehaviour:
     sundayStartHour: 12
     sundayEndHour: 17
   fatigue:
-    initialFatigue: 64
+    initialFatigue: 0
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
     sleepThreshold: 64
@@ -4534,7 +4534,7 @@ MonoBehaviour:
     sundayStartHour: 8
     sundayEndHour: 17
   fatigue:
-    initialFatigue: 72
+    initialFatigue: 0
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
     sleepThreshold: 64
@@ -10273,7 +10273,7 @@ MonoBehaviour:
     sundayStartHour: 12
     sundayEndHour: 17
   fatigue:
-    initialFatigue: 64
+    initialFatigue: 0
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
     sleepThreshold: 64
@@ -10454,7 +10454,7 @@ MonoBehaviour:
     sundayStartHour: 12
     sundayEndHour: 17
   fatigue:
-    initialFatigue: 64
+    initialFatigue: 0
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
     sleepThreshold: 64
@@ -11603,7 +11603,7 @@ MonoBehaviour:
     sundayStartHour: 12
     sundayEndHour: 17
   fatigue:
-    initialFatigue: 64
+    initialFatigue: 0
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
     sleepThreshold: 64
@@ -14389,7 +14389,7 @@ MonoBehaviour:
     sundayStartHour: 12
     sundayEndHour: 17
   fatigue:
-    initialFatigue: 64
+    initialFatigue: 0
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
     sleepThreshold: 64
@@ -14625,7 +14625,7 @@ MonoBehaviour:
     sundayStartHour: 12
     sundayEndHour: 17
   fatigue:
-    initialFatigue: 64
+    initialFatigue: 0
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
     sleepThreshold: 64
@@ -29509,7 +29509,7 @@ MonoBehaviour:
     sundayStartHour: 10
     sundayEndHour: 23
   fatigue:
-    initialFatigue: 72
+    initialFatigue: 0
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
     sleepThreshold: 64
@@ -29755,7 +29755,7 @@ MonoBehaviour:
     sundayStartHour: 12
     sundayEndHour: 17
   fatigue:
-    initialFatigue: 64
+    initialFatigue: 0
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
     sleepThreshold: 64
@@ -30630,7 +30630,7 @@ MonoBehaviour:
     sundayStartHour: 12
     sundayEndHour: 17
   fatigue:
-    initialFatigue: 64
+    initialFatigue: 0
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
     sleepThreshold: 64
@@ -31505,7 +31505,7 @@ MonoBehaviour:
     sundayStartHour: 12
     sundayEndHour: 17
   fatigue:
-    initialFatigue: 64
+    initialFatigue: 0
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
     sleepThreshold: 64
@@ -32564,7 +32564,7 @@ MonoBehaviour:
     travelCountsAsWork: 1
     workDaysMask: 63
   fatigue:
-    initialFatigue: 64
+    initialFatigue: 0
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
     sleepThreshold: 64
@@ -39934,7 +39934,7 @@ MonoBehaviour:
     endHour: 10
     commuteBeforeWork: 1
   fatigue:
-    initialFatigue: 72
+    initialFatigue: 0
     gainPerAwakeHour: 4
     recoveryPerSleepHour: 8
     sleepThreshold: 64

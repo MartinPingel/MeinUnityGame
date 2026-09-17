@@ -44,21 +44,29 @@ namespace Leveldesign
         private const string VillageGroundName = "Dorf Boden";
         private const float HoleBuffer = 1.5f; // keeps the hole strictly inside the village plate
 
-        private const float FlatMargin = 40f; // flat grass rim right outside the village plate, unchanged
-        // Hills only reach full height this far beyond the flat rim: a wide, gentle climb
-        // rather than a short ramp, so a taller hill height never steepens the village edge.
-        private const float RiseDistance = 320f;
+        // Flat rim right outside the village plate, and the distance beyond it needed to reach
+        // full hill height - both relative to the village's own half-size (never a fixed
+        // distance), so the mountains start close to the village edge regardless of village
+        // size and climb to full height in a short, dramatic rise rather than a wide, gentle one.
+        private const float FlatMarginRatio = 0.08f;
+        private const float RiseDistanceRatio = 0.7f;
 
-        // Enlarged so hills this tall still have room to ramp up and roll on for a while
-        // before reaching the terrain's outer edge (see RiseDistance).
+        // Enlarged so tall, close-in peaks this size still have room to roll on for a while
+        // before reaching the terrain's outer edge.
         private const float TerrainSize = 1400f;
-        private const float TerrainHeight = 240f; // vertical range of the terrain asset; headroom only
+        private const float TerrainHeight = 550f; // vertical range of the terrain asset; headroom only
 
         // The hill height itself is never entered manually: it is this many times the tallest
-        // building/roof found inside the village footprint, clamped to a sane hilly range.
-        private const float HillHeightFactor = 4f;
+        // building/roof found inside the village footprint, clamped to an impressive mountain range.
+        private const float HillHeightFactor = 10f;
         private const float MinHillHeight = 15f;
-        private const float MaxHillHeightLimit = 150f;
+        private const float MaxHillHeightLimit = 450f;
+
+        // Sharpens the rolling noise shape into pointed peaks and ridges instead of smooth
+        // rounded hills: each octave below is folded into a ridge (1 - |2n-1|) and the combined
+        // shape is then raised to this power, which pushes shoulders/valleys down further while
+        // leaving summits near their full height - always applied the same way, never tuned per run.
+        private const float RidgeSharpness = 1.8f;
 
         private const int HeightmapResolution = 513;
         private const int AlphamapResolution = 512;
@@ -283,13 +291,22 @@ namespace Leveldesign
             float dz = worldZ - villageCenter.y;
             float boxDistance = BoxDistance(dx, dz, villageHalfSize);
 
-            float ramp = Smooth01((boxDistance - FlatMargin) / RiseDistance);
+            // Both distances scale with the village's own half-size, so the climb always starts
+            // close to the actual village edge instead of a fixed number of units away.
+            float minHalfSize = Mathf.Min(villageHalfSize.x, villageHalfSize.y);
+            float flatMargin = minHalfSize * FlatMarginRatio;
+            float riseDistance = minHalfSize * RiseDistanceRatio;
+
+            float ramp = Smooth01((boxDistance - flatMargin) / riseDistance);
             if (ramp <= 0f)
                 return 0f;
 
-            float broad = Fbm(worldX, worldZ, 2, 1f / 280f, 0f, 0f);
-            float fine = Fbm(worldX, worldZ, 3, 1f / 70f, 4000f, 4000f);
+            float broad = Fbm(worldX, worldZ, 2, 1f / 280f, 0f, 0f, ridged: true);
+            float fine = Fbm(worldX, worldZ, 3, 1f / 70f, 4000f, 4000f, ridged: true);
             float shape = 0.7f * broad + 0.3f * fine;
+            // Push shoulders/valleys down further while summits stay near full height, so the
+            // ridged noise above reads as pointed peaks rather than smooth rolling hills.
+            shape = Mathf.Pow(Mathf.Clamp01(shape), RidgeSharpness);
 
             float mineDistance = Vector2.Distance(new Vector2(worldX, worldZ), MineRegionCenter);
             float mineBump = Smooth01(1f - mineDistance / MineRegionRadius) * 0.3f;
@@ -315,12 +332,17 @@ namespace Leveldesign
             return Mathf.Sqrt(outsideX * outsideX + outsideZ * outsideZ);
         }
 
-        private static float Fbm(float x, float z, int octaves, float baseFrequency, float offsetX, float offsetZ)
+        private static float Fbm(float x, float z, int octaves, float baseFrequency, float offsetX, float offsetZ, bool ridged)
         {
             float sum = 0f, amplitude = 1f, frequency = baseFrequency, norm = 0f;
             for (int i = 0; i < octaves; i++)
             {
-                sum += amplitude * Mathf.PerlinNoise((x + offsetX) * frequency, (z + offsetZ) * frequency);
+                float n = Mathf.PerlinNoise((x + offsetX) * frequency, (z + offsetZ) * frequency);
+                // Folds each octave into a ridge instead of a smooth wave: values near the
+                // Perlin midpoint (0.5) become peaks, so the summed result forms pointed
+                // ridgelines rather than rounded hills.
+                if (ridged) n = 1f - Mathf.Abs(2f * n - 1f);
+                sum += amplitude * n;
                 norm += amplitude;
                 amplitude *= 0.5f;
                 frequency *= 2f;

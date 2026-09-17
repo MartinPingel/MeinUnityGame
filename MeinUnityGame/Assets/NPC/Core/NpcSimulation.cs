@@ -568,17 +568,24 @@ namespace Village.Npc
                 DeliveredUnits += CargoQuantity;
                 CargoQuantity = 0;
             }
+            // Opt-in (churchVenue): during the service window, church outranks hunger and
+            // thirst too, not only rest and work - the need stays pending (Satiation/
+            // Hydration keep draining normally) but is not acted on until the window ends,
+            // so it can never re-divert an attendee once already on the way. False for every
+            // NPC without a churchVenue (e.g. Lisa) and at every other time, so this changes
+            // nothing outside the Sunday 9-11 window for an actual attendee.
+            bool attendingChurchNow = churchVenue != null && churchSchedule.IsWorkTime(TotalMinutes);
             // An empty store cannot resolve the carrier's own need: obtain real stock first.
-            if (restock != null && work.IsWorkTime(TotalMinutes) && !seekingRest &&
+            if (restock != null && work.IsWorkTime(TotalMinutes) && !seekingRest && !attendingChurchNow &&
                 ((seekingWater && restock.IsTavernSupplyEmpty(true)) ||
                  (!seekingWater && seekingFood && restock.IsTavernSupplyEmpty(false))) &&
                 TryRestock(seekingWater)) return;
-            if (seekingWater) SetSupplyGoal(true);
-            else if (seekingFood) SetSupplyGoal(false);
+            if (seekingWater && !attendingChurchNow) SetSupplyGoal(true);
+            else if (seekingFood && !attendingChurchNow) SetSupplyGoal(false);
             else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
-            // Opt-in (churchVenue): a scheduled service outranks work, restocking, tavern
-            // service, tools and cargo alike, for every attendee, for its whole duration.
-            else if (churchVenue != null && churchSchedule.IsWorkTime(TotalMinutes))
+            // A scheduled service outranks work, restocking, tavern service, tools and cargo
+            // alike, for every attendee, for its whole duration.
+            else if (attendingChurchNow)
             {
                 int previousSlot = churchSlot;
                 churchSlot = churchVenue.Reserve(this);

@@ -12,12 +12,16 @@ namespace Leveldesign
     /// and "Landschaft" root; it never reads or writes any existing GameObject, component,
     /// material, or script. Re-running replaces only its own previous output.
     ///
-    /// The village's own ground ("Dorf Boden", a 300x300 plane centred at VillageCenter)
-    /// is left completely untouched: a terrain hole is punched out under its exact footprint
-    /// so the new terrain never renders or collides there.
+    /// Dorf position, size and building height are never hard-coded: every run re-reads them
+    /// from "Dorf Boden" and every Renderer inside its footprint in the currently active scene,
+    /// so the hill height always follows the real village without a manual slider. Meant to be
+    /// run against a separate test scene (e.g. Dorf1_Terrain_Test.unity, a plain copy of
+    /// SampleScene.unity) that already contains Dorf 1, so the generated hills can be judged
+    /// next to the real church/houses/roads. Refuses to run while SampleScene itself is the
+    /// active scene, so that scene can never be touched or saved by this tool.
     ///
-    /// The maximum hill height is exposed as a slider on this window (persisted via
-    /// EditorPrefs) instead of a source constant, so it can be tuned without editing code.
+    /// The village's own ground ("Dorf Boden") is left completely untouched: a terrain hole is
+    /// punched out under its exact footprint so the new terrain never renders or collides there.
     /// </summary>
     public sealed class VillageTerrainGenerator : EditorWindow
     {
@@ -31,17 +35,18 @@ namespace Leveldesign
         private const string LandscapeRootName = "Landschaft";
         private const string TerrainObjectName = "Dorf1_Huegellandschaft";
 
-        // "Dorf Boden" in SampleScene.unity: local position (41.73209, 0, 63.01184),
-        // scale (30, 1, 30) on the built-in 10x10 Plane -> a 300x300 square, half-size 150.
-        // Taken from the existing scene file only for reference; never written back to it.
-        private static readonly Vector2 VillageCenter = new Vector2(41.73209f, 63.01184f);
-        private const float VillageHalfSize = 150f;
+        // The tool must never run against the real village scene - only against a separate
+        // test scene (copy) that already contains Dorf 1 for visual comparison.
+        private const string ProtectedSceneName = "SampleScene";
+
+        // Ground anchor read live from the active scene every run: world position = Dorfposition,
+        // world scale on the built-in 10x10 Plane = Dorfgroesse. Never a hard-coded constant.
+        private const string VillageGroundName = "Dorf Boden";
         private const float HoleBuffer = 1.5f; // keeps the hole strictly inside the village plate
 
         private const float FlatMargin = 40f; // flat grass rim right outside the village plate, unchanged
         // Hills only reach full height this far beyond the flat rim: a wide, gentle climb
-        // rather than a short ramp, so a taller MaxHillHeight never steepens the village edge.
-        // Stretched further so the taller default/ceiling below stay wide rather than steep.
+        // rather than a short ramp, so a taller hill height never steepens the village edge.
         private const float RiseDistance = 320f;
 
         // Enlarged so hills this tall still have room to ramp up and roll on for a while
@@ -49,15 +54,16 @@ namespace Leveldesign
         private const float TerrainSize = 1400f;
         private const float TerrainHeight = 240f; // vertical range of the terrain asset; headroom only
 
+        // The hill height itself is never entered manually: it is this many times the tallest
+        // building/roof found inside the village footprint, clamped to a sane hilly range.
+        private const float HillHeightFactor = 4f;
         private const float MinHillHeight = 15f;
         private const float MaxHillHeightLimit = 150f;
-        private const float DefaultHillHeight = 70f; // clearly hilly, matching a Mittelgebirge reference photo
-        private const string HillHeightPrefsKey = "Leveldesign.Dorf1.MaxHillHeight";
 
         private const int HeightmapResolution = 513;
         private const int AlphamapResolution = 512;
 
-        // East of the village stays open for the future road/corridor to Dorf 2.
+        // South of the village stays open for the future road/corridor and river to Dorf 2.
         private const float CorridorHalfWidth = 90f;
 
         // Rockier region around the existing mine/smelter placeholders (north-west of the village).
@@ -67,34 +73,63 @@ namespace Leveldesign
         private static readonly Color GrassColor = new Color(0.34f, 0.45f, 0.20f);
         private static readonly Color RockColor = new Color(0.27f, 0.28f, 0.26f); // matches MineRock.mat
 
-        private float maxHillHeight = DefaultHillHeight;
-
         [MenuItem("Tools/Leveldesign/Dorf 1 - Huegellandschaft erzeugen")]
         public static void ShowWindow()
         {
             var window = GetWindow<VillageTerrainGenerator>(true, "Dorf 1 - Huegellandschaft", true);
-            window.maxHillHeight = EditorPrefs.GetFloat(HillHeightPrefsKey, DefaultHillHeight);
-            window.minSize = new Vector2(360f, 130f);
+            window.minSize = new Vector2(420f, 200f);
         }
 
         private void OnGUI()
         {
             EditorGUILayout.LabelField("Huegellandschaft um Dorf 1", EditorStyles.boldLabel);
             EditorGUILayout.Space();
-            maxHillHeight = EditorGUILayout.Slider("Maximale Huegelhoehe", maxHillHeight, MinHillHeight, MaxHillHeightLimit);
             EditorGUILayout.HelpBox(
-                "Breite, sanft gerundete Huegel. Der flache Uebergangsbereich direkt am Dorf " +
-                "und der offene Ostkorridor bleiben davon unberuehrt.", MessageType.None);
+                "Dorfposition, Dorfgroesse und Huegelhoehe werden bei jedem Lauf automatisch aus " +
+                "'" + VillageGroundName + "' und den Gebaeuden der aktiven Szene ermittelt - keine " +
+                "manuelle Hoeheneingabe. Norden/Osten/Westen werden huegelig, Sueden bleibt offen " +
+                "fuer den Weg und spaeteren Fluss nach Dorf 2. Laeuft nur in einer separaten " +
+                "Testszene, niemals in '" + ProtectedSceneName + "'.", MessageType.None);
+            EditorGUILayout.Space();
+
+            if (TryFindVillageFootprint(out Vector2 center, out Vector2 halfSize, out float groundY))
+            {
+                float tallest = ComputeTallestBuildingHeight(center, halfSize, groundY);
+                float hillHeight = Mathf.Clamp(tallest * HillHeightFactor, MinHillHeight, MaxHillHeightLimit);
+                EditorGUILayout.LabelField("Erkannte Dorfposition", $"{center.x:0.0}, {center.y:0.0}");
+                EditorGUILayout.LabelField("Erkannte Dorfgroesse (Halbmass)", $"{halfSize.x:0.0} x {halfSize.y:0.0}");
+                EditorGUILayout.LabelField("Hoechstes Gebaeude ueber Boden", $"{tallest:0.0}");
+                EditorGUILayout.LabelField("Daraus berechnete Huegelhoehe", $"{hillHeight:0.0}");
+            }
+            else
+            {
+                EditorGUILayout.HelpBox(
+                    "'" + VillageGroundName + "' wurde in der aktiven Szene nicht gefunden.", MessageType.Warning);
+            }
+
             EditorGUILayout.Space();
             if (GUILayout.Button("Huegellandschaft erzeugen"))
-            {
-                EditorPrefs.SetFloat(HillHeightPrefsKey, maxHillHeight);
-                Generate(maxHillHeight);
-            }
+                Generate();
         }
 
-        private static void Generate(float maxHillHeight)
+        private static void Generate()
         {
+            if (EditorSceneManager.GetActiveScene().name == ProtectedSceneName)
+            {
+                Debug.LogError("[Leveldesign] Abgebrochen: aktive Szene ist '" + ProtectedSceneName +
+                    "'. Dieses Werkzeug darf sie nicht veraendern. Bitte zuerst eine separate " +
+                    "Testszene (z. B. Dorf1_Terrain_Test.unity) oeffnen.");
+                return;
+            }
+            if (!TryFindVillageFootprint(out Vector2 villageCenter, out Vector2 villageHalfSize, out float groundY))
+            {
+                Debug.LogError("[Leveldesign] Abgebrochen: '" + VillageGroundName + "' wurde in der aktiven " +
+                    "Szene nicht gefunden.");
+                return;
+            }
+            float tallestBuilding = ComputeTallestBuildingHeight(villageCenter, villageHalfSize, groundY);
+            float maxHillHeight = Mathf.Clamp(tallestBuilding * HillHeightFactor, MinHillHeight, MaxHillHeightLimit);
+
             EnsureFolder(OutputFolder);
 
             TerrainLayer grassLayer = CreateOrReplaceTerrainLayer(GrassLayerPath, GrassTexturePath, GrassColor, new Vector2(40f, 40f), 1);
@@ -112,9 +147,9 @@ namespace Leveldesign
             terrainData.terrainLayers = new[] { grassLayer, rockLayer };
             AssetDatabase.CreateAsset(terrainData, TerrainDataPath);
 
-            Vector3 origin = new Vector3(VillageCenter.x - TerrainSize / 2f, 0f, VillageCenter.y - TerrainSize / 2f);
-            PaintHeights(terrainData, origin, maxHillHeight);
-            PaintHoles(terrainData, origin);
+            Vector3 origin = new Vector3(villageCenter.x - TerrainSize / 2f, 0f, villageCenter.y - TerrainSize / 2f);
+            PaintHeights(terrainData, origin, villageCenter, villageHalfSize, maxHillHeight);
+            PaintHoles(terrainData, origin, villageCenter, villageHalfSize);
             PaintAlphamap(terrainData, origin);
             EditorUtility.SetDirty(terrainData);
 
@@ -141,12 +176,54 @@ namespace Leveldesign
             Selection.activeGameObject = terrainObject;
 
             Debug.Log("[Leveldesign] Huegellandschaft erzeugt: " + TerrainSize + "x" + TerrainSize +
-                " um Dorf 1, maximale Huegelhoehe " + maxHillHeight + ". Die Dorfplatte (+/-" + VillageHalfSize +
-                " um " + VillageCenter + ") bleibt als Terrain-Hole komplett frei. Ostkorridor (+/-" +
+                " um Dorf 1 (" + villageCenter + ", Halbmass " + villageHalfSize + "). Hoechstes Gebaeude " +
+                tallestBuilding + " -> Huegelhoehe " + maxHillHeight + " (automatisch, Faktor " + HillHeightFactor +
+                "). Die Dorfplatte bleibt als Terrain-Hole komplett frei. Suedkorridor (+/-" +
                 CorridorHalfWidth + ") Richtung Dorf 2 bleibt flach. Bitte Szene manuell pruefen und speichern.");
         }
 
-        private static void PaintHeights(TerrainData terrainData, Vector3 origin, float maxHillHeight)
+        // Reads the village anchor live from the active scene every call - never a stored
+        // constant - so Dorfposition and Dorfgroesse always match whatever scene is open.
+        private static bool TryFindVillageFootprint(out Vector2 center, out Vector2 halfSize, out float groundY)
+        {
+            GameObject ground = GameObject.Find(VillageGroundName);
+            if (ground == null)
+            {
+                center = default;
+                halfSize = default;
+                groundY = 0f;
+                return false;
+            }
+            Transform t = ground.transform;
+            center = new Vector2(t.position.x, t.position.z);
+            // The built-in Unity Plane primitive is a 10x10 unit mesh; world half-size follows
+            // whatever scale the village ground actually has, on either axis.
+            halfSize = new Vector2(5f * t.lossyScale.x, 5f * t.lossyScale.z);
+            groundY = t.position.y;
+            return true;
+        }
+
+        // Tallest roof/wall found among every Renderer whose bounds fall inside the village
+        // footprint - this NPC's own previously generated hills (under LandscapeRootName) are
+        // excluded so re-running never feeds back into its own output.
+        private static float ComputeTallestBuildingHeight(Vector2 villageCenter, Vector2 villageHalfSize, float groundY)
+        {
+            float tallest = 0f;
+            var renderers = Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            foreach (Renderer renderer in renderers)
+            {
+                if (renderer.transform.root.name == LandscapeRootName) continue;
+                Bounds bounds = renderer.bounds;
+                float dx = bounds.center.x - villageCenter.x;
+                float dz = bounds.center.z - villageCenter.y;
+                if (Mathf.Abs(dx) > villageHalfSize.x || Mathf.Abs(dz) > villageHalfSize.y) continue;
+                tallest = Mathf.Max(tallest, bounds.max.y - groundY);
+            }
+            return tallest;
+        }
+
+        private static void PaintHeights(TerrainData terrainData, Vector3 origin, Vector2 villageCenter,
+            Vector2 villageHalfSize, float maxHillHeight)
         {
             int resolution = terrainData.heightmapResolution;
             var heights = new float[resolution, resolution];
@@ -156,13 +233,13 @@ namespace Leveldesign
                 for (int x = 0; x < resolution; x++)
                 {
                     float worldX = origin.x + (float)x / (resolution - 1) * TerrainSize;
-                    heights[y, x] = ComputeHeight01(worldX, worldZ, maxHillHeight);
+                    heights[y, x] = ComputeHeight01(worldX, worldZ, villageCenter, villageHalfSize, maxHillHeight);
                 }
             }
             terrainData.SetHeights(0, 0, heights);
         }
 
-        private static void PaintHoles(TerrainData terrainData, Vector3 origin)
+        private static void PaintHoles(TerrainData terrainData, Vector3 origin, Vector2 villageCenter, Vector2 villageHalfSize)
         {
             int resolution = terrainData.holesResolution;
             var holes = new bool[resolution, resolution];
@@ -172,8 +249,8 @@ namespace Leveldesign
                 for (int x = 0; x < resolution; x++)
                 {
                     float worldX = origin.x + (float)x / (resolution - 1) * TerrainSize;
-                    bool underVillage = Mathf.Abs(worldX - VillageCenter.x) <= VillageHalfSize + HoleBuffer &&
-                                         Mathf.Abs(worldZ - VillageCenter.y) <= VillageHalfSize + HoleBuffer;
+                    bool underVillage = Mathf.Abs(worldX - villageCenter.x) <= villageHalfSize.x + HoleBuffer &&
+                                         Mathf.Abs(worldZ - villageCenter.y) <= villageHalfSize.y + HoleBuffer;
                     holes[y, x] = !underVillage; // true = terrain solid; false = hole under the existing plate
                 }
             }
@@ -199,11 +276,12 @@ namespace Leveldesign
             terrainData.SetAlphamaps(0, 0, map);
         }
 
-        private static float ComputeHeight01(float worldX, float worldZ, float maxHillHeight)
+        private static float ComputeHeight01(float worldX, float worldZ, Vector2 villageCenter,
+            Vector2 villageHalfSize, float maxHillHeight)
         {
-            float dx = worldX - VillageCenter.x;
-            float dz = worldZ - VillageCenter.y;
-            float boxDistance = BoxDistance(dx, dz, VillageHalfSize);
+            float dx = worldX - villageCenter.x;
+            float dz = worldZ - villageCenter.y;
+            float boxDistance = BoxDistance(dx, dz, villageHalfSize);
 
             float ramp = Smooth01((boxDistance - FlatMargin) / RiseDistance);
             if (ramp <= 0f)
@@ -218,22 +296,22 @@ namespace Leveldesign
 
             float heightUnits = (shape + mineBump) * maxHillHeight * ramp;
 
-            // East of the village: fade the hills out toward the centreline of the future
-            // Dorf-2 corridor so no ridge ever blocks it, while hills stay full-height
-            // north/south of the band.
-            if (dx > 0f)
+            // South of the village: fade the hills out toward the centreline of the future
+            // Dorf-2 corridor and river so nothing ever blocks it, while hills stay full-height
+            // north/east/west of the band.
+            if (dz < 0f)
             {
-                float corridorFactor = Smooth01(1f - Mathf.Abs(dz) / CorridorHalfWidth);
+                float corridorFactor = Smooth01(1f - Mathf.Abs(dx) / CorridorHalfWidth);
                 heightUnits *= 1f - corridorFactor;
             }
 
             return Mathf.Clamp01(heightUnits / TerrainHeight);
         }
 
-        private static float BoxDistance(float dx, float dz, float halfSize)
+        private static float BoxDistance(float dx, float dz, Vector2 halfSize)
         {
-            float outsideX = Mathf.Max(Mathf.Abs(dx) - halfSize, 0f);
-            float outsideZ = Mathf.Max(Mathf.Abs(dz) - halfSize, 0f);
+            float outsideX = Mathf.Max(Mathf.Abs(dx) - halfSize.x, 0f);
+            float outsideZ = Mathf.Max(Mathf.Abs(dz) - halfSize.y, 0f);
             return Mathf.Sqrt(outsideX * outsideX + outsideZ * outsideZ);
         }
 

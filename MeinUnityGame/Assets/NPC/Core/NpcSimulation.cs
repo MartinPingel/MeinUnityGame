@@ -582,7 +582,7 @@ namespace Village.Npc
                 TryRestock(seekingWater)) return;
             if (seekingWater && !attendingChurchNow) SetSupplyGoal(true);
             else if (seekingFood && !attendingChurchNow) SetSupplyGoal(false);
-            else if (seekingRest) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
+            else if (seekingRest && !attendingChurchNow) SetGoal(NpcPlace.Home, NpcState.GoingHome, NpcState.Sleeping);
             // A scheduled service outranks work, restocking, tavern service, tools and cargo
             // alike, for every attendee, for its whole duration.
             else if (attendingChurchNow)

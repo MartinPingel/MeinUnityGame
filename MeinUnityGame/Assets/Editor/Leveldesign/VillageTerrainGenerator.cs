@@ -84,8 +84,12 @@ namespace Leveldesign
         private const int HeightmapResolution = 513;
         private const int AlphamapResolution = 512;
 
-        // South of the village stays open for the future road/corridor and river to Dorf 2.
-        private const float CorridorHalfWidth = 90f;
+        // South of the village stays open for the future road to Dorf 2 - a wide, flat valley
+        // with both mountain flanks pulled well back from the centreline, not just a narrow gap.
+        // The stream mentioned for a later pass runs on the far side of the mountains, not
+        // through this corridor, so it plays no part in this width. Relative to the village's
+        // own half-size, like the other distance ratios above, rather than a fixed width.
+        private const float CorridorHalfWidthRatio = 1.4f;
 
         // Rockier region around the existing mine/smelter placeholders (north-west of the village).
         private static readonly Vector2 MineRegionCenter = new Vector2(-78f, 165f);
@@ -196,11 +200,12 @@ namespace Leveldesign
             EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
             Selection.activeGameObject = terrainObject;
 
+            float corridorHalfWidth = Mathf.Min(villageHalfSize.x, villageHalfSize.y) * CorridorHalfWidthRatio;
             Debug.Log("[Leveldesign] Huegellandschaft erzeugt: " + TerrainSize + "x" + TerrainSize +
                 " um Dorf 1 (" + villageCenter + ", Halbmass " + villageHalfSize + "). Hoechstes Gebaeude " +
                 tallestBuilding + " -> Huegelhoehe " + maxHillHeight + " (automatisch, Faktor " + HillHeightFactor +
                 "). Die Dorfplatte bleibt als Terrain-Hole komplett frei. Suedkorridor (+/-" +
-                CorridorHalfWidth + ") Richtung Dorf 2 bleibt flach. Bitte Szene manuell pruefen und speichern.");
+                corridorHalfWidth + ") Richtung Dorf 2 bleibt flach. Bitte Szene manuell pruefen und speichern.");
         }
 
         // Reads the village anchor live from the active scene every call - never a stored
@@ -287,7 +292,7 @@ namespace Leveldesign
                     if (ramp <= 0f) { heights[y, x] = 0f; continue; }
                     float worldX = origin.x + (float)x / (resolution - 1) * TerrainSize;
                     float stretched = Mathf.Clamp01((shapes[y, x] - shapeMin) / (shapeMax - shapeMin));
-                    heights[y, x] = AssembleHeight01(worldX, worldZ, villageCenter, stretched, ramp, maxHillHeight);
+                    heights[y, x] = AssembleHeight01(worldX, worldZ, villageCenter, villageHalfSize, stretched, ramp, maxHillHeight);
                 }
             }
 
@@ -410,7 +415,7 @@ namespace Leveldesign
         // Combines the already range-stretched shape with the ramp, the mine bump and the south
         // corridor fade into a final 0..1 heightmap value.
         private static float AssembleHeight01(float worldX, float worldZ, Vector2 villageCenter,
-            float stretchedShape, float ramp, float maxHillHeight)
+            Vector2 villageHalfSize, float stretchedShape, float ramp, float maxHillHeight)
         {
             float mineDistance = Vector2.Distance(new Vector2(worldX, worldZ), MineRegionCenter);
             float mineBump = Smooth01(1f - mineDistance / MineRegionRadius) * 0.3f;
@@ -418,13 +423,16 @@ namespace Leveldesign
             float heightUnits = (stretchedShape + mineBump) * maxHillHeight * ramp;
 
             // South of the village: fade the hills out toward the centreline of the future
-            // Dorf-2 corridor and river so nothing ever blocks it, while hills stay full-height
-            // north/east/west of the band.
+            // Dorf-2 road corridor - a wide gap with both flanks pulled well back, wide enough
+            // for a real road - so nothing ever blocks it, while hills stay full-height north/
+            // east/west of the band. Same smoothstep taper as before, just over a wider span, so
+            // the transition down to the valley floor stays just as soft, only reaches further.
             float dz = worldZ - villageCenter.y;
             if (dz < 0f)
             {
+                float corridorHalfWidth = Mathf.Min(villageHalfSize.x, villageHalfSize.y) * CorridorHalfWidthRatio;
                 float dx = worldX - villageCenter.x;
-                float corridorFactor = Smooth01(1f - Mathf.Abs(dx) / CorridorHalfWidth);
+                float corridorFactor = Smooth01(1f - Mathf.Abs(dx) / corridorHalfWidth);
                 heightUnits *= 1f - corridorFactor;
             }
 

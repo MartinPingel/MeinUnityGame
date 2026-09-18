@@ -103,6 +103,19 @@ namespace Leveldesign
         private static readonly Vector2 MineRegionCenter = new Vector2(-78f, 165f);
         private const float MineRegionRadius = 140f;
 
+        // The mine complex now sits deliberately inside this rockier region so it reads as
+        // built into the mountain flank - but that means the procedural hill height at its
+        // exact footprint can never be predicted or matched by hand. Exactly like the village
+        // plate, a real terrain hole is punched out under the mine's world-space footprint
+        // (apron plus tunnel, with a safety margin) so the mountain mesh can never bury or
+        // cover the entrance regardless of the noise shape; the mine's own floor/wall meshes
+        // are what the player actually sees inside this notch. Footprint world bounds match the
+        // relocated Erzmine_Platzhalter (root at -8, 0.57 -> 0, 49.25): local children span
+        // roughly X [-80,-60] x Z [171,203], i.e. world X [-88,-68] x Z [220.25,252.25].
+        private static readonly Vector2 MineHoleCenter = new Vector2(-78f, 236.25f);
+        private static readonly Vector2 MineHoleHalfSize = new Vector2(10f, 16f);
+        private const float MineHoleBuffer = 3f;
+
         private static readonly Color GrassColor = new Color(0.34f, 0.45f, 0.20f);
         private static readonly Color RockColor = new Color(0.27f, 0.28f, 0.26f); // matches MineRock.mat
 
@@ -371,7 +384,9 @@ namespace Leveldesign
                     float worldX = origin.x + (float)x / (resolution - 1) * TerrainSize;
                     bool underVillage = Mathf.Abs(worldX - villageCenter.x) <= villageHalfSize.x + HoleBuffer &&
                                          Mathf.Abs(worldZ - villageCenter.y) <= villageHalfSize.y + HoleBuffer;
-                    holes[y, x] = !underVillage; // true = terrain solid; false = hole under the existing plate
+                    bool underMine = Mathf.Abs(worldX - MineHoleCenter.x) <= MineHoleHalfSize.x + MineHoleBuffer &&
+                                       Mathf.Abs(worldZ - MineHoleCenter.y) <= MineHoleHalfSize.y + MineHoleBuffer;
+                    holes[y, x] = !(underVillage || underMine); // true = terrain solid; false = hole under the plate/mine
                 }
             }
             terrainData.SetHoles(0, 0, holes);

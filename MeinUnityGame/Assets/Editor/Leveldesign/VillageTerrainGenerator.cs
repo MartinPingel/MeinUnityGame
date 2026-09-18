@@ -62,24 +62,24 @@ namespace Leveldesign
         private const float MinHillHeight = 15f;
         private const float MaxHillHeightLimit = 450f;
 
-        // Sharpens the noise shape into pointed peaks and ridges instead of smooth rounded
-        // hills: the combined shape below is raised to this power, which pushes shoulders/
-        // valleys down further while leaving summits near their full height - always applied
-        // the same way, never tuned per run.
-        private const float RidgeSharpness = 1.8f;
-
-        // Defines a few large, connected mountain massifs rather than many small peaks: a low
-        // frequency (long wavelength relative to the hill band) so only a handful of ridged
-        // landmasses fit around the village at all. Ridged, so it still forms real ridgelines,
-        // not a single rounded dome per massif.
+        // Defines a few large, connected mountain massifs rather than many small peaks: plain
+        // (non-ridged) low-frequency Perlin noise, so the shape itself is already smooth and
+        // rounded - a long wavelength (relative to the hill band) means only a handful of
+        // massifs fit around the village at all, instead of many separate small bumps.
         private const float MassifFrequency = 1f / 650f;
         private const int MassifOctaves = 2;
-        // Much higher frequency, but blended in at low weight: adds surface roughness on top of
-        // the massifs without being strong enough to punch through as extra separate peaks of
-        // its own - and left un-ridged so it roughens rather than fragments the massif shape.
-        private const float DetailFrequency = 1f / 150f;
+        // Much higher frequency, but blended in at very low weight: adds only a hint of surface
+        // roughness on top of the massifs, nowhere near strong enough to read as its own peaks.
+        private const float DetailFrequency = 1f / 220f;
         private const int DetailOctaves = 2;
-        private const float DetailWeight = 0.15f;
+        private const float DetailWeight = 0.05f;
+
+        // Final smoothing pass over the whole heightmap grid, so summits and ridgelines come
+        // out broad and rounded instead of following every small wrinkle in the noise - this is
+        // what actually merges neighbouring bumps into a few connected massifs. The peak height
+        // lost to averaging is restored afterwards (see PaintHeights) so hills never get lower.
+        private const int SmoothingRadius = 4; // heightmap cells
+        private const int SmoothingPasses = 3; // repeated box blur approximates a wide, soft falloff
 
         private const int HeightmapResolution = 513;
         private const int AlphamapResolution = 512;
@@ -248,16 +248,68 @@ namespace Leveldesign
         {
             int resolution = terrainData.heightmapResolution;
             var heights = new float[resolution, resolution];
+            float rawMax = 0f;
             for (int y = 0; y < resolution; y++)
             {
                 float worldZ = origin.z + (float)y / (resolution - 1) * TerrainSize;
                 for (int x = 0; x < resolution; x++)
                 {
                     float worldX = origin.x + (float)x / (resolution - 1) * TerrainSize;
-                    heights[y, x] = ComputeHeight01(worldX, worldZ, villageCenter, villageHalfSize, maxHillHeight);
+                    float h = ComputeHeight01(worldX, worldZ, villageCenter, villageHalfSize, maxHillHeight);
+                    heights[y, x] = h;
+                    if (h > rawMax) rawMax = h;
                 }
             }
+            SmoothHeights(heights, rawMax);
             terrainData.SetHeights(0, 0, heights);
+        }
+
+        // Blurs the whole heightmap into broad, rounded summits and ridgelines instead of many
+        // small wrinkles - this is what actually merges neighbouring bumps into a few connected
+        // massifs. Averaging always lowers the highest point, so the result is rescaled back up
+        // to the original peak height afterwards, keeping the tallest hill exactly as tall as
+        // before while everything below it follows the smoothed, rounded shape.
+        private static void SmoothHeights(float[,] heights, float rawMax)
+        {
+            int resolution = heights.GetLength(0);
+            var buffer = new float[resolution, resolution];
+            for (int pass = 0; pass < SmoothingPasses; pass++)
+            {
+                BoxBlurPass(heights, buffer, resolution, horizontal: true);
+                BoxBlurPass(buffer, heights, resolution, horizontal: false);
+            }
+
+            float smoothedMax = 0f;
+            for (int y = 0; y < resolution; y++)
+                for (int x = 0; x < resolution; x++)
+                    if (heights[y, x] > smoothedMax) smoothedMax = heights[y, x];
+            if (smoothedMax <= 0f) return;
+
+            float restore = rawMax / smoothedMax;
+            for (int y = 0; y < resolution; y++)
+                for (int x = 0; x < resolution; x++)
+                    heights[y, x] = Mathf.Clamp01(heights[y, x] * restore);
+        }
+
+        private static void BoxBlurPass(float[,] source, float[,] destination, int resolution, bool horizontal)
+        {
+            for (int y = 0; y < resolution; y++)
+            {
+                for (int x = 0; x < resolution; x++)
+                {
+                    float sum = 0f;
+                    int count = 0;
+                    for (int offset = -SmoothingRadius; offset <= SmoothingRadius; offset++)
+                    {
+                        int sx = horizontal ? x + offset : x;
+                        int sy = horizontal ? y : y + offset;
+                        if (sx < 0 || sx >= resolution || sy < 0 || sy >= resolution) continue;
+                        sum += source[sy, sx];
+                        count++;
+                    }
+                    destination[y, x] = sum / count;
+                }
+            }
         }
 
         private static void PaintHoles(TerrainData terrainData, Vector3 origin, Vector2 villageCenter, Vector2 villageHalfSize)
@@ -314,12 +366,9 @@ namespace Leveldesign
             if (ramp <= 0f)
                 return 0f;
 
-            float massif = Fbm(worldX, worldZ, MassifOctaves, MassifFrequency, 0f, 0f, ridged: true);
-            float detail = Fbm(worldX, worldZ, DetailOctaves, DetailFrequency, 4000f, 4000f, ridged: false);
-            float shape = (1f - DetailWeight) * massif + DetailWeight * detail;
-            // Push shoulders/valleys down further while summits stay near full height, so the
-            // ridged noise above reads as pointed peaks rather than smooth rolling hills.
-            shape = Mathf.Pow(Mathf.Clamp01(shape), RidgeSharpness);
+            float massif = Fbm(worldX, worldZ, MassifOctaves, MassifFrequency, 0f, 0f);
+            float detail = Fbm(worldX, worldZ, DetailOctaves, DetailFrequency, 4000f, 4000f);
+            float shape = Mathf.Clamp01((1f - DetailWeight) * massif + DetailWeight * detail);
 
             float mineDistance = Vector2.Distance(new Vector2(worldX, worldZ), MineRegionCenter);
             float mineBump = Smooth01(1f - mineDistance / MineRegionRadius) * 0.3f;
@@ -345,17 +394,14 @@ namespace Leveldesign
             return Mathf.Sqrt(outsideX * outsideX + outsideZ * outsideZ);
         }
 
-        private static float Fbm(float x, float z, int octaves, float baseFrequency, float offsetX, float offsetZ, bool ridged)
+        // Plain fractal Perlin noise - no ridge folding - so the raw shape is already smooth
+        // and rounded rather than creased into peaks.
+        private static float Fbm(float x, float z, int octaves, float baseFrequency, float offsetX, float offsetZ)
         {
             float sum = 0f, amplitude = 1f, frequency = baseFrequency, norm = 0f;
             for (int i = 0; i < octaves; i++)
             {
-                float n = Mathf.PerlinNoise((x + offsetX) * frequency, (z + offsetZ) * frequency);
-                // Folds each octave into a ridge instead of a smooth wave: values near the
-                // Perlin midpoint (0.5) become peaks, so the summed result forms pointed
-                // ridgelines rather than rounded hills.
-                if (ridged) n = 1f - Mathf.Abs(2f * n - 1f);
-                sum += amplitude * n;
+                sum += amplitude * Mathf.PerlinNoise((x + offsetX) * frequency, (z + offsetZ) * frequency);
                 norm += amplitude;
                 amplitude *= 0.5f;
                 frequency *= 2f;

@@ -247,29 +247,63 @@ namespace Leveldesign
             Vector2 villageHalfSize, float maxHillHeight)
         {
             int resolution = terrainData.heightmapResolution;
-            var heights = new float[resolution, resolution];
-            float rawMax = 0f;
+            var ramps = new float[resolution, resolution];
+            var shapes = new float[resolution, resolution];
+
+            // First pass: raw ramp/noise only. Plain Perlin fbm naturally clusters near the
+            // middle of its range and rarely reaches its own 0/1 extremes, so its min/max is
+            // measured here - only in the fully risen hill area (ramp >= 0.9, away from the
+            // village transition) - to later stretch it across the full range. Without this,
+            // the tallest achievable shape is well below 1 everywhere, which is what made the
+            // previous version read as a low, washed-out wall instead of real mountains.
+            float shapeMin = float.MaxValue, shapeMax = float.MinValue;
             for (int y = 0; y < resolution; y++)
             {
                 float worldZ = origin.z + (float)y / (resolution - 1) * TerrainSize;
                 for (int x = 0; x < resolution; x++)
                 {
                     float worldX = origin.x + (float)x / (resolution - 1) * TerrainSize;
-                    float h = ComputeHeight01(worldX, worldZ, villageCenter, villageHalfSize, maxHillHeight);
-                    heights[y, x] = h;
-                    if (h > rawMax) rawMax = h;
+                    float ramp = ComputeRamp(worldX, worldZ, villageCenter, villageHalfSize);
+                    float shape = ComputeShape01(worldX, worldZ);
+                    ramps[y, x] = ramp;
+                    shapes[y, x] = shape;
+                    if (ramp < 0.9f) continue;
+                    if (shape < shapeMin) shapeMin = shape;
+                    if (shape > shapeMax) shapeMax = shape;
                 }
             }
-            SmoothHeights(heights, rawMax);
+            if (shapeMax - shapeMin < 0.001f) { shapeMin = 0f; shapeMax = 1f; } // degenerate fallback
+
+            // Second pass: stretch the noise to actually use the full 0..1 range, so several
+            // broad areas - not a single pixel - reach close to the target height, each massif
+            // landing at a genuinely different relative height rather than one uniform plateau.
+            var heights = new float[resolution, resolution];
+            for (int y = 0; y < resolution; y++)
+            {
+                float worldZ = origin.z + (float)y / (resolution - 1) * TerrainSize;
+                for (int x = 0; x < resolution; x++)
+                {
+                    float ramp = ramps[y, x];
+                    if (ramp <= 0f) { heights[y, x] = 0f; continue; }
+                    float worldX = origin.x + (float)x / (resolution - 1) * TerrainSize;
+                    float stretched = Mathf.Clamp01((shapes[y, x] - shapeMin) / (shapeMax - shapeMin));
+                    heights[y, x] = AssembleHeight01(worldX, worldZ, villageCenter, stretched, ramp, maxHillHeight);
+                }
+            }
+
+            // Averaging in the smoothing pass below always lowers the highest point reached, so
+            // the result is rescaled back up to the actual computed target ceiling afterwards -
+            // the mountains reach exactly the intended height even after rounding off, never less.
+            float targetCeiling = Mathf.Clamp01(maxHillHeight / TerrainHeight);
+            SmoothHeights(heights, targetCeiling);
             terrainData.SetHeights(0, 0, heights);
         }
 
         // Blurs the whole heightmap into broad, rounded summits and ridgelines instead of many
         // small wrinkles - this is what actually merges neighbouring bumps into a few connected
-        // massifs. Averaging always lowers the highest point, so the result is rescaled back up
-        // to the original peak height afterwards, keeping the tallest hill exactly as tall as
-        // before while everything below it follows the smoothed, rounded shape.
-        private static void SmoothHeights(float[,] heights, float rawMax)
+        // massifs. The result is then rescaled so its highest point matches targetCeiling exactly,
+        // keeping the mountains at their full intended height after rounding off, never lower.
+        private static void SmoothHeights(float[,] heights, float targetCeiling)
         {
             int resolution = heights.GetLength(0);
             var buffer = new float[resolution, resolution];
@@ -285,7 +319,7 @@ namespace Leveldesign
                     if (heights[y, x] > smoothedMax) smoothedMax = heights[y, x];
             if (smoothedMax <= 0f) return;
 
-            float restore = rawMax / smoothedMax;
+            float restore = targetCeiling / smoothedMax;
             for (int y = 0; y < resolution; y++)
                 for (int x = 0; x < resolution; x++)
                     heights[y, x] = Mathf.Clamp01(heights[y, x] * restore);
@@ -349,37 +383,47 @@ namespace Leveldesign
             terrainData.SetAlphamaps(0, 0, map);
         }
 
-        private static float ComputeHeight01(float worldX, float worldZ, Vector2 villageCenter,
-            Vector2 villageHalfSize, float maxHillHeight)
+        // How far outside the village a point is, 0 (still flat) to 1 (fully risen hill area).
+        // Scales with the village's own half-size, so the climb always starts close to the
+        // actual village edge instead of a fixed number of units away.
+        private static float ComputeRamp(float worldX, float worldZ, Vector2 villageCenter, Vector2 villageHalfSize)
         {
             float dx = worldX - villageCenter.x;
             float dz = worldZ - villageCenter.y;
             float boxDistance = BoxDistance(dx, dz, villageHalfSize);
-
-            // Both distances scale with the village's own half-size, so the climb always starts
-            // close to the actual village edge instead of a fixed number of units away.
             float minHalfSize = Mathf.Min(villageHalfSize.x, villageHalfSize.y);
             float flatMargin = minHalfSize * FlatMarginRatio;
             float riseDistance = minHalfSize * RiseDistanceRatio;
+            return Smooth01((boxDistance - flatMargin) / riseDistance);
+        }
 
-            float ramp = Smooth01((boxDistance - flatMargin) / riseDistance);
-            if (ramp <= 0f)
-                return 0f;
-
+        // Raw, un-stretched massif/detail noise blend, 0..1 - plain Perlin fbm, no ridge folding,
+        // so it is smooth and rounded by construction (see PaintHeights for the range stretch
+        // that turns this into full-height, differently-tall massifs).
+        private static float ComputeShape01(float worldX, float worldZ)
+        {
             float massif = Fbm(worldX, worldZ, MassifOctaves, MassifFrequency, 0f, 0f);
             float detail = Fbm(worldX, worldZ, DetailOctaves, DetailFrequency, 4000f, 4000f);
-            float shape = Mathf.Clamp01((1f - DetailWeight) * massif + DetailWeight * detail);
+            return Mathf.Clamp01((1f - DetailWeight) * massif + DetailWeight * detail);
+        }
 
+        // Combines the already range-stretched shape with the ramp, the mine bump and the south
+        // corridor fade into a final 0..1 heightmap value.
+        private static float AssembleHeight01(float worldX, float worldZ, Vector2 villageCenter,
+            float stretchedShape, float ramp, float maxHillHeight)
+        {
             float mineDistance = Vector2.Distance(new Vector2(worldX, worldZ), MineRegionCenter);
             float mineBump = Smooth01(1f - mineDistance / MineRegionRadius) * 0.3f;
 
-            float heightUnits = (shape + mineBump) * maxHillHeight * ramp;
+            float heightUnits = (stretchedShape + mineBump) * maxHillHeight * ramp;
 
             // South of the village: fade the hills out toward the centreline of the future
             // Dorf-2 corridor and river so nothing ever blocks it, while hills stay full-height
             // north/east/west of the band.
+            float dz = worldZ - villageCenter.y;
             if (dz < 0f)
             {
+                float dx = worldX - villageCenter.x;
                 float corridorFactor = Smooth01(1f - Mathf.Abs(dx) / CorridorHalfWidth);
                 heightUnits *= 1f - corridorFactor;
             }

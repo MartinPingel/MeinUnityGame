@@ -62,11 +62,24 @@ namespace Leveldesign
         private const float MinHillHeight = 15f;
         private const float MaxHillHeightLimit = 450f;
 
-        // Sharpens the rolling noise shape into pointed peaks and ridges instead of smooth
-        // rounded hills: each octave below is folded into a ridge (1 - |2n-1|) and the combined
-        // shape is then raised to this power, which pushes shoulders/valleys down further while
-        // leaving summits near their full height - always applied the same way, never tuned per run.
+        // Sharpens the noise shape into pointed peaks and ridges instead of smooth rounded
+        // hills: the combined shape below is raised to this power, which pushes shoulders/
+        // valleys down further while leaving summits near their full height - always applied
+        // the same way, never tuned per run.
         private const float RidgeSharpness = 1.8f;
+
+        // Defines a few large, connected mountain massifs rather than many small peaks: a low
+        // frequency (long wavelength relative to the hill band) so only a handful of ridged
+        // landmasses fit around the village at all. Ridged, so it still forms real ridgelines,
+        // not a single rounded dome per massif.
+        private const float MassifFrequency = 1f / 650f;
+        private const int MassifOctaves = 2;
+        // Much higher frequency, but blended in at low weight: adds surface roughness on top of
+        // the massifs without being strong enough to punch through as extra separate peaks of
+        // its own - and left un-ridged so it roughens rather than fragments the massif shape.
+        private const float DetailFrequency = 1f / 150f;
+        private const int DetailOctaves = 2;
+        private const float DetailWeight = 0.15f;
 
         private const int HeightmapResolution = 513;
         private const int AlphamapResolution = 512;
@@ -301,9 +314,9 @@ namespace Leveldesign
             if (ramp <= 0f)
                 return 0f;
 
-            float broad = Fbm(worldX, worldZ, 2, 1f / 280f, 0f, 0f, ridged: true);
-            float fine = Fbm(worldX, worldZ, 3, 1f / 70f, 4000f, 4000f, ridged: true);
-            float shape = 0.7f * broad + 0.3f * fine;
+            float massif = Fbm(worldX, worldZ, MassifOctaves, MassifFrequency, 0f, 0f, ridged: true);
+            float detail = Fbm(worldX, worldZ, DetailOctaves, DetailFrequency, 4000f, 4000f, ridged: false);
+            float shape = (1f - DetailWeight) * massif + DetailWeight * detail;
             // Push shoulders/valleys down further while summits stay near full height, so the
             // ridged noise above reads as pointed peaks rather than smooth rolling hills.
             shape = Mathf.Pow(Mathf.Clamp01(shape), RidgeSharpness);

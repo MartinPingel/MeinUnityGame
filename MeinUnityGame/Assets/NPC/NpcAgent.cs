@@ -239,6 +239,11 @@ public sealed class NpcAgent : MonoBehaviour
         INpcRestockNavigation, INpcChurchNavigation
     {
         private readonly Transform roads;
+        // Opt-in: only set when roads carries a RoadSpline (a curved, terrain-following test
+        // road - see RoadSpline/SplineRoadRouter). Every existing NPC's roadRoot has no such
+        // component, so this stays null and FindRoute below takes its original RoadRouter path
+        // completely unchanged.
+        private readonly RoadSpline spline;
         private readonly NpcPoint[] places;
         private readonly NpcSocialMeetingPlace meeting;
         private readonly INpcVisitRoute visitRoute;
@@ -252,15 +257,16 @@ public sealed class NpcAgent : MonoBehaviour
             NpcSocialMeetingPlace meeting = null, INpcVisitRoute visitRoute = null, bool hasChurch = false)
         {
             this.roads = roads;
+            spline = roads.GetComponent<RoadSpline>();
             this.meeting = meeting;
             this.visitRoute = visitRoute;
-            places = new[] { ToPoint(home.position), ToPoint(work.position),
-                ToPoint(tavern.position), ToPoint(well.position),
-                ToPoint(deliveryPoint != null ? deliveryPoint.position : work.position),
-                ToPoint(pickupPoint != null ? pickupPoint.position : work.position),
-                ToPoint(toolPoint != null ? toolPoint.position : work.position),
-                meeting != null ? meeting.Venue.Entrance : ToPoint(tavern.position), ToPoint(tavern.position),
-                ToPoint(work.position) };
+            places = new[] { ToPoint(Snap(home.position)), ToPoint(Snap(work.position)),
+                ToPoint(Snap(tavern.position)), ToPoint(Snap(well.position)),
+                ToPoint(Snap(deliveryPoint != null ? deliveryPoint.position : work.position)),
+                ToPoint(Snap(pickupPoint != null ? pickupPoint.position : work.position)),
+                ToPoint(Snap(toolPoint != null ? toolPoint.position : work.position)),
+                meeting != null ? meeting.Venue.Entrance : ToPoint(Snap(tavern.position)), ToPoint(Snap(tavern.position)),
+                ToPoint(Snap(work.position)) };
             // Fail at initialization if any required place is disconnected.
             foreach (NpcPlace place in Enum.GetValues(typeof(NpcPlace)))
             {
@@ -278,11 +284,16 @@ public sealed class NpcAgent : MonoBehaviour
         public NpcPoint GetPlace(NpcPlace place) =>
             place == NpcPlace.Work && visitRoute != null ? visitRoute.CurrentStop : places[(int)place];
 
+        private Vector3 Snap(Vector3 position) =>
+            spline != null ? SplineRoadRouter.SnapToNearestSample(spline, position) : position;
+
         public NpcPoint[] FindRoute(NpcPoint from, NpcPlace destination)
         {
             Vector3[] path = meeting != null
                 ? meeting.FindRoute(roads, ToVector(from), ToVector(GetPlace(destination)), destination == NpcPlace.Social, destination == NpcPlace.Service)
-                : RoadRouter.FindRoute(roads, ToVector(from), ToVector(GetPlace(destination)));
+                : spline != null
+                    ? SplineRoadRouter.FindRoute(spline, ToVector(from), ToVector(GetPlace(destination)))
+                    : RoadRouter.FindRoute(roads, ToVector(from), ToVector(GetPlace(destination)));
             var result = new NpcPoint[path.Length];
             for (int i = 0; i < path.Length; i++) result[i] = ToPoint(path[i]);
             return result;
